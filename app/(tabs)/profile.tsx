@@ -3,14 +3,12 @@ import * as React from "react";
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
-  StyleSheet,
   ScrollView,
+  StyleSheet,
   Alert,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
 
 import GradientHeader from "../../Modal/components/ui/GradientHeader";
@@ -22,36 +20,28 @@ export default function ProfileScreen() {
   const router = useRouter();
 
   // mock data
-  const [username, setUsername] = React.useState("");
-  const [usercode, setUsercode] = React.useState("");
-  const quotaMax = 100;
   const quotaUsed = 50;
+  const quotaMax = 100;
   const expireText = "3 ก.ย. 2025";
-  const storeName = "มินมาร์ท";
-  const phone = "0611567906";
-  const email = "admin11111@example.com";
-  const apiKey =
-    "2341f4523999c116b907892b9bf3627\ncd93050b849e7bc9";
 
-  const copyApi = async () => {
-    try {
-      await Clipboard.setStringAsync(apiKey.replace(/\n/g, ""));
-      Alert.alert("คัดลอกแล้ว", "คัดลอก API Key สำเร็จ");
-    } catch {
-      Alert.alert("คัดลอกไม่สำเร็จ");
-    }
+  const handleLogout = () => {
+    Alert.alert("ออกจากระบบ", "คุณต้องการออกจากระบบใช่หรือไม่?", [
+      { text: "ยกเลิก", style: "cancel" },
+      {
+        text: "ออกจากระบบ",
+        style: "destructive",
+        onPress: () => router.replace("/appLogin"), // <-- เปลี่ยนปลายทางมาที่ /appLogin
+      },
+    ]);
   };
 
-  const logout = () => {
-    Alert.alert("ยืนยัน", "ต้องการออกจากระบบหรือไม่?", [
-      { text: "ยกเลิก", style: "cancel" },
-      { text: "ออกจากระบบ", style: "destructive", onPress: () => router.replace("/(tabs)/report") },
-    ]);
+  const handleCopy = () => {
+    Alert.alert("คัดลอกสำเร็จ", "API Key ถูกคัดลอกแล้ว");
   };
 
   return (
     <View style={{ flex: 1, backgroundColor: "#F6F8FB" }}>
-      {/* Header gradient */}
+      {/* Header */}
       <GradientHeader
         right={
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
@@ -61,51 +51,40 @@ export default function ProfileScreen() {
         }
       />
 
-      {/* Panel */}
       <View style={styles.panel}>
         <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
           <Ionicons name="close" size={22} color="#111827" />
         </TouchableOpacity>
 
-        <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
-          <Text style={styles.title}>โปรไฟล์ผู้ใช้งาน</Text>
+        <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+          {/* Header title */}
+          <Text style={styles.h1}>โปรไฟล์ผู้ใช้งาน</Text>
 
-          {/* Avatar + user info */}
+          {/* Profile Avatar */}
+          <View style={styles.avatarWrap}>
+            <View style={styles.avatar} />
+          </View>
+
+          {/* Username + Password */}
           <SectionCard>
-            <View style={{ alignItems: "center", marginBottom: 12 }}>
-              <View style={styles.avatar} />
-            </View>
-
             <Text style={styles.label}>ชื่อผู้ใช้</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="ชื่อผู้ใช้"
-              value={username}
-              onChangeText={setUsername}
-            />
-
-            <Text style={[styles.label, { marginTop: 10 }]}>รหัสผู้ใช้</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="รหัสผู้ใช้"
-              value={usercode}
-              onChangeText={setUsercode}
-            />
+            <View style={styles.inputMock} />
+            <Text style={[styles.label, { marginTop: 12 }]}>รหัสผู้ใช้</Text>
+            <View style={styles.inputMock} />
           </SectionCard>
 
-          {/* Package usage */}
-          <View style={{ height: 10 }} />
+          {/* Usage */}
           <SectionCard>
             <View style={styles.rowBetween}>
-              <Text style={{ fontWeight: "800" }}>แพ็กเกจที่ใช้งาน</Text>
+              <Text style={styles.sectionTitle}>แพ็กเกจที่ใช้งาน</Text>
               <Text style={{ color: "#0A57FF", fontWeight: "700" }}>
                 {quotaUsed} / {quotaMax}
               </Text>
             </View>
 
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 }}>
+            <View style={styles.row}>
               <View style={styles.dot} />
-              <Text style={{ color: "#0A57FF", fontWeight: "700" }}>การใช้งาน</Text>
+              <Text style={styles.packageLabel}>การใช้งาน</Text>
             </View>
 
             <View style={{ marginTop: 8 }}>
@@ -120,49 +99,46 @@ export default function ProfileScreen() {
             </View>
 
             <View style={{ marginTop: 12 }}>
-              <PrimaryButton title="อัปแพ็กเกจ" onPress={() => {}} />
+              <PrimaryButton
+                title="อัปแพ็กเกจ"
+                onPress={() => router.push("/(tabs)/packageUp")}
+              />
             </View>
           </SectionCard>
 
-          {/* Store info */}
-          <View style={{ height: 10 }} />
+          {/* Store Info */}
           <SectionCard>
-            <Text style={{ fontWeight: "800", marginBottom: 10 }}>ข้อมูลร้านค้า</Text>
-
-            <View style={{ marginBottom: 6 }}>
-              <Text style={styles.contactLabel}>ชื่อร้านค้า</Text>
-              <Text style={styles.contactValue}>{storeName}</Text>
+            <View style={styles.rowBetween}>
+              <Text style={styles.sectionTitle}>ข้อมูลร้านค้า</Text>
             </View>
 
-            <View style={{ marginBottom: 6 }}>
-              <Text style={styles.contactLabel}>เบอร์โทรศัพท์</Text>
-              <Text style={styles.contactValue}>{phone}</Text>
-            </View>
+            <View style={{ marginTop: 10, gap: 4 }}>
+              <Text style={styles.infoLabel}>ชื่อร้านค้า</Text>
+              <Text style={styles.infoValue}>มิเนียนสโตร์</Text>
 
-            <View>
-              <Text style={styles.contactLabel}>อีเมล</Text>
-              <Text style={styles.contactValue}>{email}</Text>
+              <Text style={[styles.infoLabel, { marginTop: 6 }]}>เบอร์โทรศัพท์</Text>
+              <Text style={styles.infoValue}>0611567906</Text>
+
+              <Text style={[styles.infoLabel, { marginTop: 6 }]}>อีเมล</Text>
+              <Text style={styles.infoValue}>admin11111@example.com</Text>
             </View>
           </SectionCard>
 
           {/* API Key */}
-          <View style={{ height: 10 }} />
           <SectionCard>
-            <Text style={{ fontWeight: "800", marginBottom: 8 }}>API Key</Text>
-            <View style={styles.apiBox}>
-              <Text style={styles.apiText} selectable>{apiKey}</Text>
-            </View>
-            <View style={{ marginTop: 10 }}>
-              <PrimaryButton title="คัดลอก" onPress={copyApi} />
-            </View>
+            <Text style={styles.sectionTitle}>API Key</Text>
+            <Text style={styles.apiText}>
+              234f1452399ec116190879829b9bf3627cd93035b0849e7bc9
+            </Text>
+
+            <TouchableOpacity style={styles.copyBtn} onPress={handleCopy}>
+              <Text style={{ color: "#fff", fontWeight: "700" }}>คัดลอก</Text>
+            </TouchableOpacity>
           </SectionCard>
 
           {/* Logout */}
-          <View style={{ height: 12 }} />
-          <TouchableOpacity onPress={logout} activeOpacity={0.9}>
-            <View style={styles.logoutBtn}>
-              <Text style={{ color: "#fff", fontWeight: "800" }}>ออกจากระบบ</Text>
-            </View>
+          <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+            <Text style={styles.logoutText}>ออกจากระบบ</Text>
           </TouchableOpacity>
         </ScrollView>
       </View>
@@ -170,67 +146,69 @@ export default function ProfileScreen() {
   );
 }
 
-/* Styles */
 const styles = StyleSheet.create({
   panel: {
-    flex: 1,
+    marginTop: -16,
     backgroundColor: "#fff",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    marginTop: -16,
-    paddingTop: 8,
-    paddingHorizontal: 12,
+    paddingTop: 16,
+    paddingHorizontal: 16,
+    flex: 1,
   },
   closeBtn: {
     position: "absolute",
-    right: 14,
-    top: 10,
-    zIndex: 10,
-    height: 36,
-    width: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
+    right: 20,
+    top: 16,
+    zIndex: 5,
   },
-  title: { fontSize: 18, fontWeight: "900", marginTop: 6, marginBottom: 8, paddingRight: 40 },
-
+  h1: { fontSize: 20, fontWeight: "800", marginBottom: 10, marginTop: 20 },
+  avatarWrap: { alignItems: "center", marginBottom: 16 },
   avatar: {
-    width: 78,
-    height: 78,
-    borderRadius: 39,
-    backgroundColor: "#E5E7EB",
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: "#E2E8F0",
   },
-
-  label: { color: "#0F172A", marginBottom: 6, fontWeight: "700" },
-  input: {
-    backgroundColor: "#fff",
+  label: { fontWeight: "700", color: "#1E293B", fontSize: 14 },
+  inputMock: {
+    backgroundColor: "#F8FAFC",
+    borderRadius: 8,
+    height: 36,
     borderWidth: 1,
     borderColor: "#E2E8F0",
+  },
+  sectionTitle: { fontWeight: "800", fontSize: 16, color: "#0F172A" },
+  rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  row: { flexDirection: "row", alignItems: "center", marginTop: 6, gap: 6 },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#0A57FF" },
+  packageLabel: { color: "#0A57FF", fontWeight: "700" },
+  infoLabel: { color: "#64748B", fontSize: 13 },
+  infoValue: { fontWeight: "700", color: "#0F172A" },
+  apiText: {
+    backgroundColor: "#F8FAFC",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 10,
+    fontSize: 12,
+    marginTop: 8,
+    color: "#0F172A",
+  },
+  copyBtn: {
+    marginTop: 10,
+    backgroundColor: "#0A57FF",
     borderRadius: 10,
-    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+  },
+  logoutBtn: {
+    marginTop: 20,
+    backgroundColor: "#EF4444",
+    borderRadius: 12,
+    alignItems: "center",
     paddingVertical: 12,
   },
-
-  rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: "#0A57FF" },
-
-  contactLabel: { color: "#64748B", fontWeight: "600" },
-  contactValue: { color: "#0F172A", fontWeight: "700", marginBottom: 2 },
-
-  apiBox: {
-    backgroundColor: "#F1F5F9",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 10,
-    padding: 12,
-  },
-  apiText: { fontFamily: "monospace", color: "#0F172A" },
-
-  logoutBtn: {
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: "#EF4444",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  logoutText: { color: "#fff", fontWeight: "700", fontSize: 16 },
 });

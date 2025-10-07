@@ -50,77 +50,101 @@ export default function StoresScreen() {
     Alert.alert("คัดลอก Code สำเร็จ", code);
   };
 
-  // สร้างไลน์กรุ๊ป (ตัวอย่าง)
+  // สร้างไลน์กรุ๊ป (เดโม่)
   const createLineGroup = (branch: Branch) => {
     Alert.alert("สร้าง LINE Group", `สาขา: ${branch.name}\n(เดโม่)`);
   };
 
   const renderItem = ({ item }: { item: Branch }) => (
-    <View style={{ paddingHorizontal: 12 ,paddingTop:4 }}>
-      <SectionCard>
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
-          {/* avatar */}
-          <View style={styles.avatar} />
+    <View style={{ paddingHorizontal: 12, paddingTop: 4 }}>
+      {/* คลิกทั้งการ์ด -> ไปหน้า detailStore */}
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPress={() =>
+          router.push({
+            pathname: "/(tabs)/stores/detailStore",
+            params: { id: item.id },
+          })
+        }
+      >
+        <SectionCard>
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            {/* avatar */}
+            <View style={styles.avatar} />
 
-          {/* ชื่อ + สถานะ */}
-          <View style={{ flex: 1 }}>
-            <Text style={styles.branchName}>{item.name}</Text>
+            {/* ชื่อ + สถานะ */}
+            <View style={{ flex: 1 }}>
+              <Text style={styles.branchName}>{item.name}</Text>
 
-            <View
-              style={[
-                styles.pill,
-                item.status === "เชื่อมต่อเรียบร้อย" ? styles.pillGreen : styles.pillGray,
-              ]}
-            >
-              <Text
+              <View
                 style={[
-                  styles.pillText,
+                  styles.pill,
                   item.status === "เชื่อมต่อเรียบร้อย"
-                    ? { color: "#047857" }
-                    : { color: "#6B7280" },
+                    ? styles.pillGreen
+                    : styles.pillGray,
                 ]}
               >
-                {item.status}
-              </Text>
+                <Text
+                  style={[
+                    styles.pillText,
+                    item.status === "เชื่อมต่อเรียบร้อย"
+                      ? { color: "#047857" }
+                      : { color: "#6B7280" },
+                  ]}
+                >
+                  {item.status}
+                </Text>
+              </View>
+            </View>
+
+            {/* ปุ่มแก้ไข/ลบ */}
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <TouchableOpacity
+                style={styles.iconBtn}
+                onPressOut={(e) => e.stopPropagation?.()}
+                onPress={() =>
+                  router.push({
+                    pathname: "/(tabs)/stores/editStore",
+                    params: { id: item.id },
+                  })
+                }
+                accessibilityLabel="แก้ไขสาขา"
+              >
+                <Ionicons name="pencil" size={16} color="#2563EB" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.iconBtn}
+                onPressOut={(e) => e.stopPropagation?.()}
+                onPress={() => confirmDelete(item.id)}
+                accessibilityLabel="ลบสาขา"
+              >
+                <Ionicons name="trash-outline" size={16} color="#DC2626" />
+              </TouchableOpacity>
             </View>
           </View>
 
-          {/* ปุ่มแก้ไข/ลบ */}
-          <View style={{ flexDirection: "row", gap: 10 }}>
+          {/* ปุ่มล่าง */}
+          <View style={{ height: 10 }} />
+          <View style={{ flexDirection: "row", gap: 12 }}>
             <TouchableOpacity
-              style={styles.iconBtn}
-              // ไปหน้า editStore
-              onPress={() =>
-                router.push({
-                  pathname: "/(tabs)/stores/editStore",
-                  params: { id: item.id },
-                })
-              }
-              accessibilityLabel="แก้ไขสาขา"
+              style={styles.ghostBtn}
+              onPressOut={(e) => e.stopPropagation?.()}
+              onPress={() => copyCode(item.code)}
             >
-              <Ionicons name="pencil" size={16} color="#2563EB" />
+              <Text style={styles.ghostBtnText}>คัดลอก code</Text>
             </TouchableOpacity>
+
             <TouchableOpacity
-              style={styles.iconBtn}
-              onPress={() => confirmDelete(item.id)}
-              accessibilityLabel="ลบสาขา"
+              style={styles.ghostBtn}
+              onPressOut={(e) => e.stopPropagation?.()}
+              onPress={() => createLineGroup(item)}
             >
-              <Ionicons name="trash-outline" size={16} color="#DC2626" />
+              <Text style={styles.ghostBtnText}>สร้าง line group</Text>
             </TouchableOpacity>
           </View>
-        </View>
-
-        {/* ปุ่มล่าง */}
-        <View style={{ height: 10 }} />
-        <View style={{ flexDirection: "row", gap: 12 }}>
-          <TouchableOpacity style={styles.ghostBtn} onPress={() => copyCode(item.code)}>
-            <Text style={styles.ghostBtnText}>คัดลอก code</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.ghostBtn} onPress={() => createLineGroup(item)}>
-            <Text style={styles.ghostBtnText}>สร้าง line group</Text>
-          </TouchableOpacity>
-        </View>
-      </SectionCard>
+        </SectionCard>
+      </TouchableOpacity>
     </View>
   );
 
@@ -135,8 +159,14 @@ export default function StoresScreen() {
           <GradientHeader
             right={
               <Link href="/(tabs)/profile" asChild>
-                <TouchableOpacity style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                  <MaterialCommunityIcons name="storefront-outline" size={18} color="#EAF4FF" />
+                <TouchableOpacity
+                  style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+                >
+                  <MaterialCommunityIcons
+                    name="storefront-outline"
+                    size={18}
+                    color="#EAF4FF"
+                  />
                   <Text style={{ color: "#EAF4FF" }}>Hi, Yada</Text>
                 </TouchableOpacity>
               </Link>
@@ -145,8 +175,13 @@ export default function StoresScreen() {
 
           {/* หัวข้อ + ปุ่ม + */}
           <View style={styles.panel}>
-            <View style={{ flexDirection: "row", alignItems: "center" ,paddingBottom:14
-            }}>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                paddingBottom: 14,
+              }}
+            >
               <View style={{ flex: 1 }}>
                 <Text style={styles.title}>สาขาร้านค้า</Text>
                 <Text style={styles.subtitle}>
@@ -154,7 +189,6 @@ export default function StoresScreen() {
                 </Text>
               </View>
 
-              {/* ปุ่ม + ไปหน้า addStore */}
               <Link href="/(tabs)/stores/addStore" asChild>
                 <TouchableOpacity style={styles.fabSmall} accessibilityLabel="เพิ่มสาขา">
                   <Ionicons name="add" size={22} color="#fff" />
@@ -170,6 +204,7 @@ export default function StoresScreen() {
   );
 }
 
+/* ─── Styles ─────────────────────────────────────── */
 const styles = StyleSheet.create({
   panel: {
     backgroundColor: "#fff",

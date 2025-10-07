@@ -1,0 +1,266 @@
+// app/(tabs)/stores/[id].tsx
+import * as React from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+} from "react-native";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
+import { Link, useLocalSearchParams, useRouter } from "expo-router";
+import GradientHeader from "../../../Modal/components/ui/GradientHeader";
+
+type BankItem = { id: string; name: string; number: string };
+
+const MOCK_BANKS: BankItem[] = [
+  { id: "1", name: "ซิบ ซิบ", number: "5555555555555" },
+  { id: "2", name: "ซิบ ซิบ", number: "5555555555555" },
+  { id: "3", name: "ซิบ ซิบ", number: "5555555555555" },
+];
+
+export default function DetailStore() {
+  const router = useRouter();
+  const { id } = useLocalSearchParams<{ id: string }>();
+
+  const code = "dmYwYzIs2SLNzv2Qw2CxeHUEE0K3L4";
+  const storeName = "สาขาหลัก";
+  const storeNo = "#000010";
+  const statusText = "ยังไม่ได้เชื่อมต่อ";
+
+  const copyCode = async () => {
+    await Clipboard.setStringAsync(code);
+    Alert.alert("คัดลอกสำเร็จ", "คัดลอก Code เรียบร้อย");
+  };
+
+  return (
+    <View style={{ flex: 1, backgroundColor: "#F6F8FB" }}>
+      {/* Header gradient + ปุ่มไปโปรไฟล์ */}
+      <GradientHeader
+        right={
+          <Link href="/(tabs)/profile" asChild>
+            <TouchableOpacity style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <MaterialCommunityIcons name="storefront-outline" size={18} color="#EAF4FF" />
+              <Text style={{ color: "#EAF4FF" }}>Hi, Yada</Text>
+            </TouchableOpacity>
+          </Link>
+        }
+      />
+
+      {/* แผงขาวโค้ง + ปุ่มปิดมุมขวา */}
+      <ScrollView style={styles.panel} contentContainerStyle={{ paddingBottom: 40 }}>
+        {/* ปุ่มปิด */}
+        <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
+          <Ionicons name="close" size={18} color="#0F172A" />
+        </TouchableOpacity>
+
+        {/* การ์ดหัว */}
+        <View style={styles.headerCard}>
+          <View style={styles.storeIconWrap}>
+            <MaterialCommunityIcons name="storefront-outline" size={32} color="#10B981" />
+          </View>
+
+          <View style={{ marginTop: 6 }}>
+            <Text style={styles.storeTopLabel}>ร้าน บนแพลตฟอร์ม</Text>
+            <Text style={styles.storeTitle}>{storeName}</Text>
+          </View>
+
+          <View style={styles.rowGap}>
+            {/* สถานะ (แดง) */}
+            <View style={[styles.badge, styles.badgeRed]}>
+              <Text style={[styles.badgeText, { color: "#B91C1C" }]}>{statusText}</Text>
+            </View>
+
+            {/* รหัสร้าน */}
+            <View style={[styles.badge, styles.badgeGray]}>
+              <Text style={[styles.badgeText, { color: "#0F172A" }]}>{storeNo}</Text>
+            </View>
+          </View>
+
+          {/* แจ้งเตือนชมพู */}
+          <View style={styles.alertBox}>
+            <Text style={styles.alertText}>
+              กรุณาสร้าง/เชื่อมเข้า LINE Group โดยใช้ Code {"\n"}
+              และบัญชี SureSure ที่ลงทะเบียนไว้
+            </Text>
+          </View>
+        </View>
+
+        {/* วิธีเชื่อมต่อ Line */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>วิธีเชื่อมต่อ Line</Text>
+
+          <View style={{ gap: 4, marginTop: 6 }}>
+            <Text style={styles.stepText}>1. เปิดเมนู Code</Text>
+            <Text style={styles.stepText}>2. กดเข้าร่วม LINE Group, ภายใน LINE OA: SureSure</Text>
+            <Text style={styles.stepText}>3. วาง Code ด้านล่างใน Group ที่ต้องการเพิ่มด้วย</Text>
+            <Text style={styles.stepText}>
+              4. หลังเชื่อมต่อสำเร็จ ระบบจะแสดงสถิติรายงานสลิปอัตโนมัติ
+            </Text>
+          </View>
+
+          {/* กล่อง Code + ปุ่มคัดลอก */}
+          <View style={styles.codeBoxWrap}>
+            <Text style={styles.codeLabel}>Code สำหรับเชื่อมต่อ Line Group</Text>
+            <View style={styles.codeRow}>
+              <View style={styles.codeField}>
+                <Text style={styles.codeFieldText} numberOfLines={1}>
+                  {code}
+                </Text>
+              </View>
+              <TouchableOpacity style={styles.copyBtn} onPress={copyCode}>
+                <Text style={styles.copyBtnText}>คัดลอก</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.codeHint}>* โค้ดจะใช้ได้ภายในระยะเวลาจำกัด</Text>
+          </View>
+
+          <TouchableOpacity style={styles.primaryBtn} onPress={() => Alert.alert("สร้าง LINE Group", "เดโม่")}>
+            <Text style={styles.primaryBtnText}>สร้าง LINE Group</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* บัญชีรับเงินที่เชื่อมต่อ */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>บัญชีรับเงินที่เชื่อมต่อ</Text>
+
+          <View style={{ height: 10 }} />
+          {MOCK_BANKS.map((b) => (
+            <View key={b.id} style={styles.bankRow}>
+              <View style={styles.bankAvatar} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.bankName}>{b.name}</Text>
+                <Text style={styles.bankNo}>{b.number}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  panel: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    marginTop: -16,
+    paddingTop: 16,
+    paddingHorizontal: 14,
+  },
+  closeBtn: {
+    position: "absolute",
+    right: 14,
+    top: 14,
+    zIndex: 5,
+    height: 28,
+    width: 28,
+    borderRadius: 14,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  headerCard: {
+  backgroundColor: "#F9FAFB",
+  borderRadius: 14,
+  borderWidth: 1,
+  borderColor: "#E5E7EB",
+  padding: 14,
+  alignItems: "center",
+  },
+  storeIconWrap: {
+    height: 56,
+    width: 56,
+    borderRadius: 12,
+    backgroundColor: "#ECFDF5",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  storeTopLabel: { color: "#6B7280", fontSize: 11 },
+  storeTitle: { fontSize: 16, fontWeight: "800", color: "#0F172A" },
+  rowGap: { flexDirection: "row", gap: 8, marginTop: 8 },
+  badge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  badgeRed: { backgroundColor: "#FEE2E2", borderColor: "#FCA5A5" },
+  badgeGray: { backgroundColor: "#F3F4F6", borderColor: "#E5E7EB" },
+  badgeText: { fontSize: 11, fontWeight: "800" },
+
+  alertBox: {
+    marginTop: 10,
+    backgroundColor: "#FEE2E2",
+    borderColor: "#FCA5A5",
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 10,
+    alignSelf: "stretch",
+  },
+  alertText: { color: "#991B1B", fontSize: 12, lineHeight: 18, textAlign: "center" },
+
+  card: {
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    padding: 14,
+    marginTop: 12,
+  },
+  cardTitle: { fontSize: 13, fontWeight: "800", color: "#0F172A" },
+  stepText: { color: "#475569", fontSize: 12 },
+
+  codeBoxWrap: { marginTop: 10 },
+  codeLabel: { color: "#334155", fontSize: 12, marginBottom: 6, fontWeight: "700" },
+  codeRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  codeField: {
+    flex: 1,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: "#E8F0FE",
+    justifyContent: "center",
+    paddingHorizontal: 10,
+  },
+  codeFieldText: { color: "#0F172A", fontWeight: "700" },
+  copyBtn: {
+    height: 36,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    backgroundColor: "#2563EB",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  copyBtnText: { color: "#fff", fontWeight: "700" },
+  codeHint: { color: "#94A3B8", fontSize: 11, marginTop: 4 },
+
+  primaryBtn: {
+    marginTop: 10,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: "#0A57FF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  primaryBtnText: { color: "#fff", fontWeight: "800" },
+
+  bankRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    marginBottom: 10,
+  },
+  bankAvatar: { width: 28, height: 28, borderRadius: 6, backgroundColor: "#2563EB" },
+  bankName: { fontWeight: "700", color: "#0F172A" },
+  bankNo: { color: "#475569", marginTop: 2 },
+});
