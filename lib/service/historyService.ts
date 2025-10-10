@@ -24,24 +24,21 @@ function normalize<T>(res: AnyApiResponse<T>) {
 const BASE = "/transaction";
 
 export async function getTransactionsAll() {
-  const raw = await httpGet<AnyApiResponse<any[]>>(`${BASE}/get`, { debug: true });
-  console.log("[historyService] GET /transaction/get ->", raw);
+  const raw = await httpGet<AnyApiResponse<any[]>>(`${BASE}/get`);
   const res = normalize<any[]>(raw);
   if (res.code !== 2006) throw new Error(res.message || "Fetch transactions failed");
   return Array.isArray(res.data) ? res.data.map(mapDto) : [];
 }
 
 export async function getTransactionsByUserId(userId: number) {
-  const raw = await httpGet<AnyApiResponse<any[]>>(`${BASE}/get/${userId}`, { debug: true });
-  console.log(`[historyService] GET /transaction/get/${userId} ->`, raw);
+  const raw = await httpGet<AnyApiResponse<any[]>>(`${BASE}/get/${userId}`);
   const res = normalize<any[]>(raw);
   if (res.code !== 2006) throw new Error(res.message || "Fetch user transactions failed");
   return Array.isArray(res.data) ? res.data.map(mapDto) : [];
 }
 
 export async function deleteTransaction(id: number) {
-  const raw = await httpDelete<AnyApiResponse<null>>(`${BASE}/delete/${id}`, { debug: true });
-  console.log(`[historyService] DELETE /transaction/delete/${id} ->`, raw);
+  const raw = await httpDelete<AnyApiResponse<null>>(`${BASE}/delete/${id}`);
   const res = normalize<null>(raw);
   if (res.code !== 2006) throw new Error(res.message || "Delete transaction failed");
 }
