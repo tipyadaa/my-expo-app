@@ -77,19 +77,21 @@ function Dropdown({
   );
 }
 
-// ─── Hook: โหลด userId ───────────────────────────────────────────────
+// ─── Hook: โหลด userId (สามสถานะ: undefined | number | null) ───────
 function useAuthUserId() {
-  const [userId, setUserId] = useState<number | null>(null);
+  const [userId, setUserId] = useState<number | null | undefined>(undefined);
 
   useEffect(() => {
     (async () => {
       try {
         const raw = await getItem("app.auth");
-        if (!raw) return;
+        if (!raw) {
+          setUserId(null);
+          return;
+        }
         const obj = JSON.parse(raw);
         const uid = Number(obj?.userId ?? obj?.id ?? obj?.user_id);
-        if (!Number.isNaN(uid) && uid > 0) setUserId(uid);
-        else setUserId(null);
+        setUserId(!Number.isNaN(uid) && uid > 0 ? uid : null);
       } catch {
         setUserId(null);
       }
@@ -102,7 +104,7 @@ function useAuthUserId() {
 // ─── หน้าหลัก ───────────────────────────────────────────────────────
 export default function HistoryScreen() {
   const userId = useAuthUserId();
-  const waitingUserId = userId === null;
+  const waitingUserId = userId === undefined; // กำลังโหลดจาก storage
 
   const [filter, setFilter] = useState<FilterType>("แสดงรายการทั้งหมด");
   const [q, setQ] = useState("");
@@ -111,22 +113,18 @@ export default function HistoryScreen() {
     queryKey: ["history", userId ?? "all"],
     queryFn: () =>
       userId ? getTransactionsByUserId(userId) : getTransactionsAll(),
-    enabled: !waitingUserId,
+    enabled: userId !== undefined, // ถ้า null (ไม่มี user) ก็ยังยิง getAll
     keepPreviousData: true,
     staleTime: 60 * 1000,
     refetchOnWindowFocus: false,
   });
-
-  useEffect(() => {
-    console.log("History data:", data);
-  }, [data]);
 
   // ─── กรองและเรียงข้อมูล ───────────────────────────────────────────
   const rows = useMemo(() => {
     const source = (data as SureSureTransaction[]) || [];
     let filtered = source;
 
-    // กรองสถานะ
+    // กรองสถานะ (เทียบด้วย label ไทยจาก getHistoryPill)
     if (filter !== "แสดงรายการทั้งหมด") {
       filtered = filtered.filter(
         (x) => getHistoryPill(x.status).label === filter
@@ -137,13 +135,7 @@ export default function HistoryScreen() {
     const keyword = q.trim().toLowerCase();
     if (keyword.length) {
       filtered = filtered.filter((x) => {
-        const pack = [
-          x.txid,
-          x.refNo,
-          x.senderName,
-          x.receiveName,
-          x.message,
-        ]
+        const pack = [x.txid, x.refNo, x.senderName, x.receiveName, x.message]
           .filter(Boolean)
           .join(" ")
           .toLowerCase();
@@ -155,11 +147,15 @@ export default function HistoryScreen() {
     filtered.sort((a, b) => {
       const aKey =
         new Date(
-          a.updatedDate || a.createdDate || `${a.transDate}T${a.transTime}`
+          a.updatedDate ||
+            a.createdDate ||
+            `${a.transDate}T${a.transTime || "00:00:00"}`
         ).getTime() || 0;
       const bKey =
         new Date(
-          b.updatedDate || b.createdDate || `${b.transDate}T${b.transTime}`
+          b.updatedDate ||
+            b.createdDate ||
+            `${b.transDate}T${b.transTime || "00:00:00"}`
         ).getTime() || 0;
       return bKey - aKey;
     });
@@ -177,6 +173,7 @@ export default function HistoryScreen() {
   // ─── render item ───────────────────────────────────────────────────
   const renderItem = ({ item }: { item: any }) => (
     <View style={styles.itemRow}>
+      {/* ซ้าย: ชื่อ/เวลา/ID */}
       <View style={{ flex: 1 }}>
         <Text style={[styles.cellText, { fontWeight: "600" }]}>{item.who}</Text>
         <Text style={[styles.cellText, { marginTop: 2, color: "#475569" }]}>
@@ -187,6 +184,7 @@ export default function HistoryScreen() {
         </Text>
       </View>
 
+      {/* กลาง: จำนวนเงิน */}
       <View
         style={{ width: 100, alignItems: "flex-end", justifyContent: "center" }}
       >
@@ -195,6 +193,7 @@ export default function HistoryScreen() {
         </Text>
       </View>
 
+      {/* ขวา: สถานะ */}
       <View
         style={{ width: 80, alignItems: "flex-end", justifyContent: "center" }}
       >
@@ -252,6 +251,7 @@ export default function HistoryScreen() {
 
           {/* White panel */}
           <View style={styles.panel}>
+            {/* หัวเรื่อง + refresh */}
             <View
               style={{
                 flexDirection: "row",
@@ -319,7 +319,7 @@ export default function HistoryScreen() {
       }
       renderItem={renderItem}
       ListEmptyComponent={
-        !waitingUserId && (
+        userId !== undefined && (
           <Text style={{ padding: 16, color: "#64748B" }}>
             ยังไม่มีประวัติรายการ
           </Text>
@@ -411,6 +411,7 @@ const styles = StyleSheet.create({
   },
   pillText: { fontSize: 12, fontWeight: "600" },
 
+  // modal dropdown
   modalBackdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.2)",
