@@ -1,6 +1,6 @@
-// app/(tabs)/history.tsx
+﻿// app/(tabs)/history.tsx
 import * as React from "react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,29 +9,23 @@ import {
   Modal,
   Pressable,
   StyleSheet,
+  TextInput,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import GradientHeader from "../../Modal/components/ui/GradientHeader";
 import { Link } from "expo-router";
+import { useQuery } from "@tanstack/react-query";
 
+import GradientHeader from "../../Modal/components/ui/GradientHeader";
+import {
+  getTransactionsByUserId,
+  getTransactionsAll,
+  formatTxnDateTime,
+  getHistoryPill,
+  SureSureTransaction,
+} from "../../lib/service/historyService";
+import { getItem } from "../../lib/storage";
 
-// ─── ชุดข้อมูลตัวอย่าง ──────────────────────────────────────────────────────
-type Row = {
-  id: string;
-  dateISO: string; // YYYY-MM-DD
-  transferId: string;
-  status: "สำเร็จ" | "ไม่สำเร็จ";
-};
-
-const MOCK: Row[] = [
-  { id: "1", dateISO: "2021-04-23", transferId: "TXN2948239489\n230", status: "สำเร็จ" },
-  { id: "2", dateISO: "2021-04-23", transferId: "TXN2948239489\n230", status: "ไม่สำเร็จ" },
-  { id: "3", dateISO: "2021-04-18", transferId: "TXN2948239489\n230", status: "ไม่สำเร็จ" },
-  { id: "4", dateISO: "2021-04-15", transferId: "TXN2948239489\n230", status: "สำเร็จ" },
-  { id: "5", dateISO: "2021-04-11", transferId: "TXN2948239489\n230", status: "สำเร็จ" },
-];
-
-// ─── Dropdown อย่างง่ายในไฟล์นี้ ───────────────────────────────────────────
+// ─── Dropdown อย่างง่าย ───────────────────────────────────────────
 const FILTERS = ["แสดงรายการทั้งหมด", "สำเร็จ", "ไม่สำเร็จ"] as const;
 type FilterType = typeof FILTERS[number];
 
@@ -56,7 +50,12 @@ function Dropdown({
         <Ionicons name="chevron-down" size={16} color="#475569" />
       </TouchableOpacity>
 
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+      <Modal
+        visible={open}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setOpen(false)}
+      >
         <Pressable style={styles.modalBackdrop} onPress={() => setOpen(false)}>
           <View style={styles.modalSheet}>
             {FILTERS.map((f) => (
@@ -78,102 +77,260 @@ function Dropdown({
   );
 }
 
-// ─── หน้าหลัก ────────────────────────────────────────────────────────────────
+// ─── Hook: โหลด userId ───────────────────────────────────────────────
+function useAuthUserId() {
+  const [userId, setUserId] = useState<number | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = await getItem("app.auth");
+        if (!raw) return;
+        const obj = JSON.parse(raw);
+        const uid = Number(obj?.userId ?? obj?.id ?? obj?.user_id);
+        if (!Number.isNaN(uid) && uid > 0) setUserId(uid);
+        else setUserId(null);
+      } catch {
+        setUserId(null);
+      }
+    })();
+  }, []);
+
+  return userId;
+}
+
+// ─── หน้าหลัก ───────────────────────────────────────────────────────
 export default function HistoryScreen() {
+  const userId = useAuthUserId();
+  const waitingUserId = userId === null;
+
   const [filter, setFilter] = useState<FilterType>("แสดงรายการทั้งหมด");
+  const [q, setQ] = useState("");
 
-  const data = useMemo(() => {
-    if (filter === "แสดงรายการทั้งหมด") return MOCK;
-    return MOCK.filter((r) => r.status === filter);
-  }, [filter]);
+  const { data = [], error, refetch, isFetching } = useQuery({
+    queryKey: ["history", userId ?? "all"],
+    queryFn: () =>
+      userId ? getTransactionsByUserId(userId) : getTransactionsAll(),
+    enabled: !waitingUserId,
+    keepPreviousData: true,
+    staleTime: 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
 
-  const renderItem = ({ item }: { item: Row }) => (
+  useEffect(() => {
+    console.log("History data:", data);
+  }, [data]);
+
+  // ─── กรองและเรียงข้อมูล ───────────────────────────────────────────
+  const rows = useMemo(() => {
+    const source = (data as SureSureTransaction[]) || [];
+    let filtered = source;
+
+    // กรองสถานะ
+    if (filter !== "แสดงรายการทั้งหมด") {
+      filtered = filtered.filter(
+        (x) => getHistoryPill(x.status).label === filter
+      );
+    }
+
+    // ค้นหาคำสำคัญ
+    const keyword = q.trim().toLowerCase();
+    if (keyword.length) {
+      filtered = filtered.filter((x) => {
+        const pack = [
+          x.txid,
+          x.refNo,
+          x.senderName,
+          x.receiveName,
+          x.message,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return pack.includes(keyword);
+      });
+    }
+
+    // เรียงล่าสุดก่อน
+    filtered.sort((a, b) => {
+      const aKey =
+        new Date(
+          a.updatedDate || a.createdDate || `${a.transDate}T${a.transTime}`
+        ).getTime() || 0;
+      const bKey =
+        new Date(
+          b.updatedDate || b.createdDate || `${b.transDate}T${b.transTime}`
+        ).getTime() || 0;
+      return bKey - aKey;
+    });
+
+    return filtered.map((x) => ({
+      id: String(x.id),
+      when: formatTxnDateTime(x),
+      transferId: x.txid || x.refNo || "-",
+      amount: x.amount ?? 0,
+      who: x.receiveName || x.senderName || "",
+      pill: getHistoryPill(x.status || ""),
+    }));
+  }, [data, filter, q]);
+
+  // ─── render item ───────────────────────────────────────────────────
+  const renderItem = ({ item }: { item: any }) => (
     <View style={styles.itemRow}>
-      <View style={styles.colDate}>
-        <Text style={styles.cellText}>{formatDate(item.dateISO)}</Text>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.cellText, { fontWeight: "600" }]}>{item.who}</Text>
+        <Text style={[styles.cellText, { marginTop: 2, color: "#475569" }]}>
+          {item.when}
+        </Text>
+        <Text style={[styles.cellText, { marginTop: 2, color: "#64748B" }]}>
+          ID: {item.transferId}
+        </Text>
       </View>
-      <View style={styles.colId}>
-        <Text style={styles.cellText}>{item.transferId}</Text>
+
+      <View
+        style={{ width: 100, alignItems: "flex-end", justifyContent: "center" }}
+      >
+        <Text style={[styles.cellText, { fontWeight: "700" }]}>
+          {item.amount ? `฿ ${item.amount.toFixed(2)}` : ""}
+        </Text>
       </View>
-      <View style={styles.colStatus}>
-        <Text
+
+      <View
+        style={{ width: 80, alignItems: "flex-end", justifyContent: "center" }}
+      >
+        <View
           style={[
-            styles.cellText,
-            { textAlign: "right", color: item.status === "สำเร็จ" ? "#16A34A" : "#DC2626" },
+            styles.pill,
+            item.pill.tone === "danger"
+              ? { backgroundColor: "#FFE5E5" }
+              : item.pill.tone === "success"
+              ? { backgroundColor: "#E6F9EF" }
+              : { backgroundColor: "#ECEFF3" },
           ]}
         >
-          {item.status}
-        </Text>
+          <Text
+            style={[
+              styles.pillText,
+              item.pill.tone === "danger"
+                ? { color: "#C40000" }
+                : { color: "#057A3B" },
+            ]}
+          >
+            {item.pill.label}
+          </Text>
+        </View>
       </View>
     </View>
   );
 
+  // ─── render list ───────────────────────────────────────────────────
   return (
     <FlatList
       style={{ flex: 1, backgroundColor: "#F6F8FB" }}
       contentContainerStyle={{ paddingBottom: 96 }}
-      data={data}
+      data={rows}
       keyExtractor={(it) => it.id}
       ListHeaderComponent={
         <>
-          {/* หัว gradient + ขวาเป็นไอคอนกับชื่อ */}
-<GradientHeader
-  right={
-    <Link href="/(tabs)/profile" asChild>
-      <TouchableOpacity style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-        <Ionicons name="storefront-outline" size={18} color="#EAF4FF" />
-        <Text style={{ color: "#EAF4FF" }}>Hi, Yada</Text>
-      </TouchableOpacity>
-    </Link>
-  }
-/>
+          {/* Gradient header */}
+          <GradientHeader
+            right={
+              <Link href="/(tabs)/profile" asChild>
+                <TouchableOpacity
+                  style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+                >
+                  <Ionicons
+                    name="storefront-outline"
+                    size={18}
+                    color="#EAF4FF"
+                  />
+                  <Text style={{ color: "#EAF4FF" }}>Hi, Yada</Text>
+                </TouchableOpacity>
+              </Link>
+            }
+          />
 
-
-          {/* แผงพื้นหลังโค้ง */}
+          {/* White panel */}
           <View style={styles.panel}>
-            {/* หัวเรื่อง */}
-            <Text style={styles.title}>รายการย้อนหลัง</Text>
-
-            {/* แถว filter + search ปุ่มฟ้า */}
-            <View style={styles.controlsRow}>
-              <Dropdown value={filter} onChange={setFilter} />
-              <TouchableOpacity style={styles.searchBtn} activeOpacity={0.8}>
-                <Ionicons name="search" size={18} color="#fff" />
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <Text style={styles.title}>รายการย้อนหลัง</Text>
+              <TouchableOpacity
+                onPress={() => refetch()}
+                disabled={isFetching || waitingUserId}
+              >
+                <Ionicons name="refresh" size={20} color="#0A57FF" />
               </TouchableOpacity>
             </View>
 
-            {/* กรอบ “ตาราง” */}
+            {/* filter + search */}
+            <View style={styles.controlsRow}>
+              <Dropdown value={filter} onChange={setFilter} />
+
+              <View style={styles.searchBox}>
+                <Ionicons name="search" size={18} color="#64748B" />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="ค้นหา ref/txid/ชื่อ"
+                  placeholderTextColor="#94A3B8"
+                  value={q}
+                  onChangeText={setQ}
+                  returnKeyType="search"
+                />
+              </View>
+            </View>
+
+            {/* table header */}
             <View style={styles.table}>
-              {/* header ของตาราง */}
               <View style={styles.headerRow}>
-                <Text style={[styles.headerText, styles.colDate]}>วัน/เวลาทำรายการ</Text>
-                <Text style={[styles.headerText, styles.colId]}>Transfer ID</Text>
-                <Text style={[styles.headerText, styles.colStatus, { textAlign: "right" }]}>
+                <Text style={[styles.headerText, { flex: 1 }]}>
+                  วัน/เวลา · ผู้เกี่ยวข้อง · ID
+                </Text>
+                <Text
+                  style={[styles.headerText, { width: 100, textAlign: "right" }]}
+                >
+                  จำนวนเงิน
+                </Text>
+                <Text
+                  style={[styles.headerText, { width: 80, textAlign: "right" }]}
+                >
                   สถานะ
                 </Text>
               </View>
             </View>
           </View>
+
+          {error && (
+            <View style={{ padding: 16, gap: 6 }}>
+              <Text style={{ color: "#DC2626" }}>
+                ไม่สามารถดึงข้อมูลได้ กรุณาลองใหม่
+              </Text>
+              <Text style={{ color: "#475569", fontSize: 12 }}>
+                {(error as Error).message || String(error)}
+              </Text>
+            </View>
+          )}
         </>
       }
       renderItem={renderItem}
+      ListEmptyComponent={
+        !waitingUserId && (
+          <Text style={{ padding: 16, color: "#64748B" }}>
+            ยังไม่มีประวัติรายการ
+          </Text>
+        )
+      }
       ListFooterComponent={<View style={{ height: 24 }} />}
-      // ให้แถวอยู่ต่อจากหัวตาราง: ใช้ ListHeaderComponent สำหรับส่วนหัว แล้วแถวจะตามมาเอง
     />
   );
 }
 
-// ─── Utils ──────────────────────────────────────────────────────────────────
-function formatDate(iso: string) {
-  const d = new Date(iso + "T00:00:00");
-  return d.toLocaleDateString("en-US", {
-    month: "short",
-    day: "2-digit",
-    year: "numeric",
-  });
-}
-
-// ─── Styles ─────────────────────────────────────────────────────────────────
+// ─── Styles ───────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   panel: {
     backgroundColor: "#fff",
@@ -184,7 +341,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   title: { fontSize: 22, fontWeight: "800", marginBottom: 12 },
-  controlsRow: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
+  controlsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+    gap: 8,
+  },
   dropdown: {
     flex: 1,
     height: 40,
@@ -198,15 +360,20 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   dropdownText: { color: "#0F172A", flex: 1 },
-  searchBtn: {
-    height: 40,
-    width: 44,
-    marginLeft: 8,
-    borderRadius: 10,
-    backgroundColor: "#0A57FF",
+
+  searchBox: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    height: 40,
+    flex: 1,
+    backgroundColor: "#EEF2F6",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    gap: 6,
   },
+  searchInput: { flex: 1, color: "#0F172A", paddingVertical: 0 },
 
   table: {
     backgroundColor: "#fff",
@@ -230,15 +397,20 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 12,
     paddingHorizontal: 12,
+    alignItems: "center",
+    gap: 8,
   },
 
-  colDate: { width: 92 },
-  colId: { flex: 1, paddingHorizontal: 10 },
-  colStatus: { width: 62 },
-
   cellText: { color: "#0F172A", fontSize: 12 },
-  
-  // modal dropdown
+
+  pill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    alignSelf: "flex-end",
+  },
+  pillText: { fontSize: 12, fontWeight: "600" },
+
   modalBackdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.2)",

@@ -1,4 +1,4 @@
-// app/modals/ScanPay.tsx
+
 import * as React from "react";
 import {
   View,
