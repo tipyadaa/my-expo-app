@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
@@ -14,32 +16,45 @@ import { Link, useRouter } from "expo-router";
 
 import GradientHeader from "../../../Modal/components/ui/GradientHeader";
 import SectionCard from "../../../Modal/components/ui/SectionCard";
-
-type Branch = {
-  id: string;
-  name: string;
-  status: "ยังไม่ได้เชื่อมต่อ" | "เชื่อมต่อเรียบร้อย";
-  code: string;
-};
-
-const MOCK: Branch[] = [
-  { id: "1", name: "สาขาเชียงใหม่", status: "ยังไม่ได้เชื่อมต่อ", code: "CM-9A3K2" },
-  { id: "2", name: "สาขาลำพูน", status: "เชื่อมต่อเรียบร้อย", code: "LP-77QW1" },
-  { id: "3", name: "สาขาเชียงใหม่สันทราย", status: "ยังไม่ได้เชื่อมต่อ", code: "SS-1B9Z0" },
-];
+import {
+  useDeleteStore,
+  useStores,
+  type StoreBranch,
+} from "../../../lib/service/storeService";
 
 export default function StoresScreen() {
   const router = useRouter();
-  const [items, setItems] = React.useState<Branch[]>(MOCK);
+
+  // โหลดรายการสาขาจาก backend
+  const { data: items, isLoading, isError, refetch, isFetching } = useStores();
 
   // ลบสาขา
+  const delMut = useDeleteStore();
+
+  // pull-to-refresh
+  const [refreshing, setRefreshing] = React.useState(false);
+  const onRefresh = React.useCallback(async () => {
+    try {
+      setRefreshing(true);
+      await refetch();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refetch]);
+
+  // ลบสาขา (เรียก backend)
   const confirmDelete = (id: string) => {
     Alert.alert("ยืนยันการลบ", "ต้องการลบสาขานี้หรือไม่?", [
       { text: "ยกเลิก", style: "cancel" },
       {
         text: "ลบ",
         style: "destructive",
-        onPress: () => setItems((prev) => prev.filter((b) => b.id !== id)),
+        onPress: () =>
+          delMut.mutate(id, {
+            onError: (e: any) => {
+              Alert.alert("ลบไม่สำเร็จ", e?.message ?? "เกิดข้อผิดพลาด");
+            },
+          }),
       },
     ]);
   };
@@ -51,11 +66,11 @@ export default function StoresScreen() {
   };
 
   // สร้างไลน์กรุ๊ป (เดโม่)
-  const createLineGroup = (branch: Branch) => {
+  const createLineGroup = (branch: { name: string }) => {
     Alert.alert("สร้าง LINE Group", `สาขา: ${branch.name}\n(เดโม่)`);
   };
 
-  const renderItem = ({ item }: { item: Branch }) => (
+  const renderItem = ({ item }: { item: StoreBranch }) => (
     <View style={{ paddingHorizontal: 12, paddingTop: 4 }}>
       {/* คลิกทั้งการ์ด -> ไปหน้า detailStore */}
       <TouchableOpacity
@@ -66,6 +81,7 @@ export default function StoresScreen() {
             params: { id: item.id },
           })
         }
+        disabled={delMut.isPending} // กันคลิกระหว่างกำลังลบ
       >
         <SectionCard>
           <View style={{ flexDirection: "row", alignItems: "center" }}>
@@ -79,17 +95,13 @@ export default function StoresScreen() {
               <View
                 style={[
                   styles.pill,
-                  item.status === "เชื่อมต่อเรียบร้อย"
-                    ? styles.pillGreen
-                    : styles.pillGray,
+                  item.status === "เชื่อมต่อเรียบร้อย" ? styles.pillGreen : styles.pillGray,
                 ]}
               >
                 <Text
                   style={[
                     styles.pillText,
-                    item.status === "เชื่อมต่อเรียบร้อย"
-                      ? { color: "#047857" }
-                      : { color: "#6B7280" },
+                    item.status === "เชื่อมต่อเรียบร้อย" ? { color: "#047857" } : { color: "#6B7280" },
                   ]}
                 >
                   {item.status}
@@ -100,7 +112,8 @@ export default function StoresScreen() {
             {/* ปุ่มแก้ไข/ลบ */}
             <View style={{ flexDirection: "row", gap: 10 }}>
               <TouchableOpacity
-                style={styles.iconBtn}
+                style={[styles.iconBtn, delMut.isPending && { opacity: 0.6 }]}
+                disabled={delMut.isPending}
                 onPressOut={(e) => e.stopPropagation?.()}
                 onPress={() =>
                   router.push({
@@ -114,12 +127,17 @@ export default function StoresScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.iconBtn}
+                style={[styles.iconBtn, delMut.isPending && { opacity: 0.6 }]}
+                disabled={delMut.isPending}
                 onPressOut={(e) => e.stopPropagation?.()}
                 onPress={() => confirmDelete(item.id)}
                 accessibilityLabel="ลบสาขา"
               >
-                <Ionicons name="trash-outline" size={16} color="#DC2626" />
+                {delMut.isPending ? (
+                  <ActivityIndicator size="small" />
+                ) : (
+                  <Ionicons name="trash-outline" size={16} color="#DC2626" />
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -131,6 +149,7 @@ export default function StoresScreen() {
               style={styles.ghostBtn}
               onPressOut={(e) => e.stopPropagation?.()}
               onPress={() => copyCode(item.code)}
+              disabled={delMut.isPending}
             >
               <Text style={styles.ghostBtnText}>คัดลอก code</Text>
             </TouchableOpacity>
@@ -139,6 +158,7 @@ export default function StoresScreen() {
               style={styles.ghostBtn}
               onPressOut={(e) => e.stopPropagation?.()}
               onPress={() => createLineGroup(item)}
+              disabled={delMut.isPending}
             >
               <Text style={styles.ghostBtnText}>สร้าง line group</Text>
             </TouchableOpacity>
@@ -152,21 +172,19 @@ export default function StoresScreen() {
     <FlatList
       style={{ flex: 1, backgroundColor: "#F6F8FB" }}
       contentContainerStyle={{ paddingBottom: 96 }}
-      data={items}
+      data={items ?? []}
       keyExtractor={(b) => b.id}
+      renderItem={renderItem}
+      refreshControl={
+        <RefreshControl refreshing={refreshing || isFetching} onRefresh={onRefresh} />
+      }
       ListHeaderComponent={
         <>
           <GradientHeader
             right={
               <Link href="/(tabs)/profile" asChild>
-                <TouchableOpacity
-                  style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
-                >
-                  <MaterialCommunityIcons
-                    name="storefront-outline"
-                    size={18}
-                    color="#EAF4FF"
-                  />
+                <TouchableOpacity style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <MaterialCommunityIcons name="storefront-outline" size={18} color="#EAF4FF" />
                   <Text style={{ color: "#EAF4FF" }}>Hi, Yada</Text>
                 </TouchableOpacity>
               </Link>
@@ -175,18 +193,10 @@ export default function StoresScreen() {
 
           {/* หัวข้อ + ปุ่ม + */}
           <View style={styles.panel}>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                paddingBottom: 14,
-              }}
-            >
+            <View style={{ flexDirection: "row", alignItems: "center", paddingBottom: 14 }}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.title}>สาขาร้านค้า</Text>
-                <Text style={styles.subtitle}>
-                  เชื่อมต่อสาขากับ LINE Group เพื่อตรวจสอบสลิป
-                </Text>
+                <Text style={styles.subtitle}>เชื่อมต่อสาขากับ LINE Group เพื่อตรวจสอบสลิป</Text>
               </View>
 
               <Link href="/(tabs)/stores/addStore" asChild>
@@ -195,10 +205,33 @@ export default function StoresScreen() {
                 </TouchableOpacity>
               </Link>
             </View>
+
+            {/* Loading / Error helpers */}
+            {isLoading && (
+              <View style={{ paddingVertical: 12, alignItems: "center" }}>
+                <ActivityIndicator />
+                <Text style={{ marginTop: 8, color: "#64748B" }}>กำลังโหลด...</Text>
+              </View>
+            )}
+            {isError && !isLoading && (
+              <View style={{ paddingVertical: 12, alignItems: "center" }}>
+                <Text style={{ color: "#DC2626", fontWeight: "700" }}>โหลดไม่สำเร็จ</Text>
+                <TouchableOpacity
+                  onPress={() => refetch()}
+                  style={[styles.ghostBtn, { marginTop: 8, paddingHorizontal: 16 }]}
+                >
+                  <Text style={styles.ghostBtnText}>ลองอีกครั้ง</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {!isLoading && !isError && (items?.length ?? 0) === 0 && (
+              <View style={{ paddingVertical: 12, alignItems: "center" }}>
+                <Text style={{ color: "#64748B" }}>ยังไม่มีสาขา</Text>
+              </View>
+            )}
           </View>
         </>
       }
-      renderItem={renderItem}
       ListFooterComponent={<View style={{ height: 16 }} />}
     />
   );

@@ -1,3 +1,4 @@
+// app/(tabs)/stores/addStore.tsx
 import * as React from "react";
 import {
   View,
@@ -8,6 +9,7 @@ import {
   Switch,
   Alert,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Link, useRouter } from "expo-router";
@@ -16,16 +18,50 @@ import GradientHeader from "../../../Modal/components/ui/GradientHeader";
 import SectionCard from "../../../Modal/components/ui/SectionCard";
 import PrimaryButton from "../../../Modal/components/ui/PrimaryButton";
 
+import {
+  useCreateStore,
+  type StoreBranch,
+} from "../../../lib/service/storeService";
+import { getJSON } from "../../../lib/storage";
+
 type LinkedAccount = { id: string; bank: string; number: string; enabled: boolean };
 
 export default function AddStore() {
   const router = useRouter();
 
-  // form state
+  // ── โหลด userId จาก AsyncStorage ─────────────────────────────
+  // คาดหวังเก็บไว้ที่ key: "app.user" เป็น { id: number, ... }
+  const [userId, setUserId] = React.useState<number | null>(null);
+  const [loadingUser, setLoadingUser] = React.useState(true);
+
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const user = await getJSON<{ id?: number }>("app.user", {});
+        if (typeof user?.id === "number" && user.id > 0) {
+          setUserId(user.id);
+        } else {
+          console.warn("[AddStore] ⚠️ ไม่พบ app.user.id ใน storage — fallback 1 ชั่วคราว");
+          setUserId(1); // TODO: ให้ auth เก็บ user.id ที่ถูกต้อง แล้วลบบรรทัดนี้
+        }
+      } catch (e) {
+        console.warn("[AddStore] อ่าน userId ไม่ได้:", e);
+        setUserId(1); // fallback
+      } finally {
+        setLoadingUser(false);
+      }
+    })();
+  }, []);
+
+  // ใช้ hook สำหรับสร้าง (ผูกกับ userId)
+  const { mutate: createMutate, isPending: isCreating } = useCreateStore(userId ?? undefined);
+
+  // ── form state ────────────────────────────────────────────────
   const [branchName, setBranchName] = React.useState("");
   const [linked, setLinked] = React.useState<LinkedAccount[]>([
+    // เดโม่ UI – ยังไม่ผูกกับ backend บัญชีธนาคารในหน้านี้
     { id: "a1", bank: "แอนด์ แอนด์", number: "4327999134", enabled: true },
-    { id: "a2", bank: "แอนด์ แอนด์", number: "1115356122", enabled: true },
+    { id: "a2", bank: "แอนด์ แอนด์", number: "1115356122", enabled: false },
   ]);
   const [showRules, setShowRules] = React.useState(true);
   const [minAmount, setMinAmount] = React.useState<number>(80);
@@ -43,13 +79,47 @@ export default function AddStore() {
       Alert.alert("กรอกข้อมูลไม่ครบ", "โปรดระบุชื่อสาขาร้านค้า");
       return;
     }
-    const enabled = linked.filter((x) => x.enabled).map((x) => x.number);
-    Alert.alert(
-      "สร้างสาขาสำเร็จ",
-      `ชื่อสาขา: ${branchName}\nบัญชีที่เชื่อมต่อ: ${enabled.join(", ") || "-"}\nเตือนขั้นต่ำ: ${minAmount}`,
-      [{ text: "ตกลง", onPress: () => router.back() }]
-    );
+    if (!userId || userId <= 0) {
+      Alert.alert("ไม่พบผู้ใช้", "ไม่สามารถระบุผู้ใช้สำหรับสร้างสาขาได้");
+      return;
+    }
+
+    // payload สำหรับ service (service จะ map เป็น body ของ /room2/create)
+    const payload: Omit<StoreBranch, "id"> = {
+      name: branchName.trim(),
+      status: "ยังไม่ได้เชื่อมต่อ", // เริ่มต้นยังไม่เชื่อมต่อ (line_group_id = "")
+      code: "",                      // ถ้ายังไม่มี QRToken ให้เว้นว่างได้
+      minAmount,
+      hideSenderAcc,
+      hideReceiverAcc,
+    };
+
+    console.log("[AddStore] userId =", userId, "payload =", payload);
+
+    createMutate(payload, {
+      onSuccess: () => {
+        const enabled = linked.filter((x) => x.enabled).map((x) => x.number);
+        Alert.alert(
+          "สร้างสาขาสำเร็จ",
+          `ชื่อสาขา: ${branchName}\nบัญชีที่เชื่อมต่อ: ${enabled.join(", ") || "-"}\nเตือนขั้นต่ำ: ${minAmount}`,
+          [{ text: "ตกลง", onPress: () => router.back() }]
+        );
+      },
+      onError: (e: any) => {
+        Alert.alert("สร้างสาขาไม่สำเร็จ", e?.message ?? "Internal Processing Error");
+      },
+    });
   };
+
+  // แสดงโหลดระหว่างดึง userId
+  if (loadingUser) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator />
+        <Text style={{ marginTop: 8, color: "#64748B" }}>กำลังเตรียมข้อมูลผู้ใช้...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: "#F6F8FB" }}>
@@ -88,7 +158,7 @@ export default function AddStore() {
               onChangeText={setBranchName}
             />
 
-            {/* กล่อง: บัญชีรับเงินที่เชื่อมต่อ */}
+            {/* กล่อง: บัญชีรับเงินที่เชื่อมต่อ (เดโม่ UI) */}
             <Text style={[styles.groupTitle, { marginTop: 12 }]}>บัญชีรับเงินที่เชื่อมต่อ</Text>
             {linked.map((a) => (
               <View key={a.id} style={styles.rowBetween}>
@@ -155,7 +225,17 @@ export default function AddStore() {
           </SectionCard>
 
           <View style={{ height: 12 }} />
-          <PrimaryButton title="สร้างสาขา" onPress={onSubmit} />
+          <PrimaryButton
+            title={isCreating ? "กำลังสร้าง..." : "สร้างสาขา"}
+            onPress={onSubmit}
+            disabled={isCreating}
+          />
+          {isCreating && (
+            <View style={{ marginTop: 8, alignItems: "center" }}>
+              <ActivityIndicator />
+              <Text style={{ marginTop: 6, color: "#64748B" }}>กำลังส่งข้อมูล...</Text>
+            </View>
+          )}
         </ScrollView>
       </View>
     </View>

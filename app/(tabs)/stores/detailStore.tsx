@@ -7,33 +7,88 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { Link, useLocalSearchParams, useRouter } from "expo-router";
 import GradientHeader from "../../../Modal/components/ui/GradientHeader";
 
-type BankItem = { id: string; name: string; number: string };
-
-const MOCK_BANKS: BankItem[] = [
-  { id: "1", name: "ซิบ ซิบ", number: "5555555555555" },
-  { id: "2", name: "ซิบ ซิบ", number: "5555555555555" },
-  { id: "3", name: "ซิบ ซิบ", number: "5555555555555" },
-];
+import { useStores } from "../../../lib/service/storeService";
 
 export default function DetailStore() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
 
-  const code = "dmYwYzIs2SLNzv2Qw2CxeHUEE0K3L4";
-  const storeName = "สาขาหลัก";
-  const storeNo = "#000010";
-  const statusText = "ยังไม่ได้เชื่อมต่อ";
+  // โหลดรายการทั้งหมดแล้วหา item ที่ id ตรงกับพาธ
+  const { data, isLoading, isError, refetch } = useStores();
+  const item = React.useMemo(
+    () => (data ?? []).find((x) => x.id === String(id)),
+    [data, id]
+  );
+
+  const storeName = item?.name ?? "-";
+  const statusText = item?.status ?? "ยังไม่ได้เชื่อมต่อ";
+  const code = item?.code ?? "-";
+  const storeNo = `#${String(item?.id ?? "").padStart(5, "0")}`;
 
   const copyCode = async () => {
+    if (!code || code === "-") {
+      Alert.alert("คัดลอกไม่สำเร็จ", "ยังไม่มีโค้ดสำหรับสาขานี้");
+      return;
+    }
     await Clipboard.setStringAsync(code);
     Alert.alert("คัดลอกสำเร็จ", "คัดลอก Code เรียบร้อย");
   };
+
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator />
+        <Text style={{ marginTop: 8, color: "#64748B" }}>กำลังโหลดข้อมูล...</Text>
+      </View>
+    );
+  }
+
+  if (isError) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 16 }}>
+        <Text style={{ color: "#DC2626", fontWeight: "700" }}>โหลดข้อมูลไม่สำเร็จ</Text>
+        <TouchableOpacity
+          onPress={() => refetch()}
+          style={{
+            marginTop: 10,
+            paddingHorizontal: 16,
+            paddingVertical: 10,
+            backgroundColor: "#E2E8F0",
+            borderRadius: 8,
+          }}
+        >
+          <Text>ลองอีกครั้ง</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (!item) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 16 }}>
+        <Text style={{ color: "#64748B" }}>ไม่พบสาขานี้</Text>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={{
+            marginTop: 10,
+            paddingHorizontal: 16,
+            paddingVertical: 10,
+            backgroundColor: "#E2E8F0",
+            borderRadius: 8,
+          }}
+        >
+          <Text>กลับ</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: "#F6F8FB" }}>
@@ -68,9 +123,21 @@ export default function DetailStore() {
           </View>
 
           <View style={styles.rowGap}>
-            {/* สถานะ (แดง) */}
-            <View style={[styles.badge, styles.badgeRed]}>
-              <Text style={[styles.badgeText, { color: "#B91C1C" }]}>{statusText}</Text>
+            {/* สถานะ */}
+            <View
+              style={[
+                styles.badge,
+                statusText === "เชื่อมต่อเรียบร้อย" ? styles.badgeGreen : styles.badgeRed,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.badgeText,
+                  { color: statusText === "เชื่อมต่อเรียบร้อย" ? "#065F46" : "#B91C1C" },
+                ]}
+              >
+                {statusText}
+              </Text>
             </View>
 
             {/* รหัสร้าน */}
@@ -79,13 +146,15 @@ export default function DetailStore() {
             </View>
           </View>
 
-          {/* แจ้งเตือนชมพู */}
-          <View style={styles.alertBox}>
-            <Text style={styles.alertText}>
-              กรุณาสร้าง/เชื่อมเข้า LINE Group โดยใช้ Code {"\n"}
-              และบัญชี SureSure ที่ลงทะเบียนไว้
-            </Text>
-          </View>
+          {/* แจ้งเตือนชมพู เมื่อยังไม่เชื่อมต่อ */}
+          {statusText !== "เชื่อมต่อเรียบร้อย" && (
+            <View style={styles.alertBox}>
+              <Text style={styles.alertText}>
+                กรุณาสร้าง/เชื่อมเข้า LINE Group โดยใช้ Code {"\n"}
+                และบัญชี SureSure ที่ลงทะเบียนไว้
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* วิธีเชื่อมต่อ Line */}
@@ -94,7 +163,9 @@ export default function DetailStore() {
 
           <View style={{ gap: 4, marginTop: 6 }}>
             <Text style={styles.stepText}>1. เปิดเมนู Code</Text>
-            <Text style={styles.stepText}>2. กดเข้าร่วม LINE Group, ภายใน LINE OA: SureSure</Text>
+            <Text style={styles.stepText}>
+              2. กดเข้าร่วม LINE Group, ภายใน LINE OA: SureSure
+            </Text>
             <Text style={styles.stepText}>3. วาง Code ด้านล่างใน Group ที่ต้องการเพิ่มด้วย</Text>
             <Text style={styles.stepText}>
               4. หลังเชื่อมต่อสำเร็จ ระบบจะแสดงสถิติรายงานสลิปอัตโนมัติ
@@ -117,7 +188,10 @@ export default function DetailStore() {
             <Text style={styles.codeHint}>* โค้ดจะใช้ได้ภายในระยะเวลาจำกัด</Text>
           </View>
 
-          <TouchableOpacity style={styles.primaryBtn} onPress={() => Alert.alert("สร้าง LINE Group", "เดโม่")}>
+          <TouchableOpacity
+            style={styles.primaryBtn}
+            onPress={() => Alert.alert("สร้าง LINE Group", "เดโม่")}
+          >
             <Text style={styles.primaryBtnText}>สร้าง LINE Group</Text>
           </TouchableOpacity>
         </View>
@@ -127,15 +201,11 @@ export default function DetailStore() {
           <Text style={styles.cardTitle}>บัญชีรับเงินที่เชื่อมต่อ</Text>
 
           <View style={{ height: 10 }} />
-          {MOCK_BANKS.map((b) => (
-            <View key={b.id} style={styles.bankRow}>
-              <View style={styles.bankAvatar} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.bankName}>{b.name}</Text>
-                <Text style={styles.bankNo}>{b.number}</Text>
-              </View>
-            </View>
-          ))}
+          {/* ถ้ายังไม่มี endpoint สำหรับบัญชีที่ผูกกับสาขา แสดงข้อความไว้ก่อน */}
+          <Text style={{ color: "#64748B" }}>
+            ยังไม่มีข้อมูลบัญชีที่เชื่อมต่อสำหรับสาขานี้
+          </Text>
+          {/* เมื่อพร้อมใช้งาน API บัญชี: map รายการบัญชีที่ได้จาก backend ตรงนี้แทน */}
         </View>
       </ScrollView>
     </View>
@@ -165,12 +235,12 @@ const styles = StyleSheet.create({
   },
 
   headerCard: {
-  backgroundColor: "#F9FAFB",
-  borderRadius: 14,
-  borderWidth: 1,
-  borderColor: "#E5E7EB",
-  padding: 14,
-  alignItems: "center",
+    backgroundColor: "#F9FAFB",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    padding: 14,
+    alignItems: "center",
   },
   storeIconWrap: {
     height: 56,
@@ -190,6 +260,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   badgeRed: { backgroundColor: "#FEE2E2", borderColor: "#FCA5A5" },
+  badgeGreen: { backgroundColor: "#ECFDF5", borderColor: "#A7F3D0" },
   badgeGray: { backgroundColor: "#F3F4F6", borderColor: "#E5E7EB" },
   badgeText: { fontSize: 11, fontWeight: "800" },
 
@@ -247,20 +318,4 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   primaryBtnText: { color: "#fff", fontWeight: "800" },
-
-  bankRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    marginBottom: 10,
-  },
-  bankAvatar: { width: 28, height: 28, borderRadius: 6, backgroundColor: "#2563EB" },
-  bankName: { fontWeight: "700", color: "#0F172A" },
-  bankNo: { color: "#475569", marginTop: 2 },
 });

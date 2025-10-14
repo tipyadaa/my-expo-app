@@ -1,3 +1,4 @@
+// app/(tabs)/stores/editStore.tsx
 import * as React from "react";
 import {
   View,
@@ -8,6 +9,7 @@ import {
   Switch,
   Alert,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Link, useLocalSearchParams, useRouter } from "expo-router";
@@ -16,50 +18,48 @@ import GradientHeader from "../../../Modal/components/ui/GradientHeader";
 import SectionCard from "../../../Modal/components/ui/SectionCard";
 import PrimaryButton from "../../../Modal/components/ui/PrimaryButton";
 
-type LinkedAccount = { id: string; bank: string; number: string; enabled: boolean };
+import {
+  useStores,
+  useUpdateStore,
+  type StoreBranch,
+} from "../../../lib/service/storeService";
 
-// mock DB สำหรับเดโม่
-const MOCK: Record<string, { name: string; linked: LinkedAccount[]; min: number; hideS: boolean; hideR: boolean }> = {
-  "1": {
-    name: "สาขาเชียงใหม่",
-    linked: [
-      { id: "a1", bank: "แอนด์ แอนด์", number: "4327999134", enabled: true },
-      { id: "a2", bank: "แอนด์ แอนด์", number: "1115356122", enabled: true },
-    ],
-    min: 80,
-    hideS: false,
-    hideR: false,
-  },
-};
+type LinkedAccount = { id: string; bank: string; number: string; enabled: boolean };
 
 export default function EditStore() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
 
+  // ดึงรายการห้องทั้งหมด แล้วหาอันที่ id ตรงกับพารามิเตอร์
+  const { data: list, isLoading, isError, isFetching, refetch } = useStores();
+  const current = React.useMemo(
+    () => (list ?? []).find((x) => x.id === String(id)),
+    [list, id]
+  );
+
+  const { mutate: updateMutate, isPending: isSaving } = useUpdateStore();
+
   const [branchName, setBranchName] = React.useState("");
   const [linked, setLinked] = React.useState<LinkedAccount[]>([]);
   const [showRules, setShowRules] = React.useState(true);
+
+  // ค่าตั้งค่า (ต้องบันทึก)
   const [minAmount, setMinAmount] = React.useState<number>(80);
   const [hideSenderAcc, setHideSenderAcc] = React.useState(false);
   const [hideReceiverAcc, setHideReceiverAcc] = React.useState(false);
 
+  // เติมค่าจาก backend เมื่อ current เปลี่ยน
   React.useEffect(() => {
-    const row = id ? MOCK[String(id)] : undefined;
-    if (row) {
-      setBranchName(row.name);
-      setLinked(row.linked);
-      setMinAmount(row.min);
-      setHideSenderAcc(row.hideS);
-      setHideReceiverAcc(row.hideR);
-    } else {
-      // fallback ถ้าไม่มีข้อมูล
-      setBranchName("");
-      setLinked([
-        { id: "a1", bank: "แอนด์ แอนด์", number: "4327999134", enabled: true },
-        { id: "a2", bank: "แอนด์ แอนด์", number: "1115356122", enabled: true },
-      ]);
-    }
-  }, [id]);
+    if (!current) return;
+
+    setBranchName(current.name ?? "");
+    setLinked([]); // ยังไม่มี endpoint บัญชีเชื่อมต่อในหน้านี้
+
+    // map จาก service: minAmount / hideSenderAcc / hideReceiverAcc
+    setMinAmount(typeof current.minAmount === "number" ? current.minAmount : 80);
+    setHideSenderAcc(!!current.hideSenderAcc);
+    setHideReceiverAcc(!!current.hideReceiverAcc);
+  }, [current?.id]);
 
   const toggleLinked = (lid: string) =>
     setLinked((prev) => prev.map((x) => (x.id === lid ? { ...x, enabled: !x.enabled } : x)));
@@ -68,12 +68,78 @@ export default function EditStore() {
   const minus = () => setMinAmount((v) => Math.max(0, v - 1));
 
   const onSubmit = () => {
+    if (!id) {
+      Alert.alert("ไม่พบไอดีสาขา");
+      return;
+    }
     if (!branchName.trim()) {
       Alert.alert("กรอกข้อมูลไม่ครบ", "โปรดระบุชื่อสาขาร้านค้า");
       return;
     }
-    Alert.alert("บันทึกสำเร็จ", "แก้ไขสาขาเรียบร้อย", [{ text: "ตกลง", onPress: () => router.back() }]);
+
+    // patch ที่ service จะ map เป็น:
+    // - minAmount      -> min_receive (number)
+    // - hideSenderAcc  -> show_transferor = !hideSenderAcc
+    // - hideReceiverAcc-> show_recipient  = !hideReceiverAcc
+    const patch: Partial<StoreBranch> = {
+      name: branchName.trim(),
+      minAmount,
+      hideSenderAcc,
+      hideReceiverAcc,
+    };
+
+    console.log("[EditStore] submit patch:", { id: String(id), ...patch });
+
+    updateMutate(
+      { id: String(id), patch },
+      {
+        onSuccess: () => {
+          Alert.alert("บันทึกสำเร็จ", "แก้ไขสาขาเรียบร้อย", [
+            { text: "ตกลง", onPress: () => router.back() },
+          ]);
+        },
+        onError: (e: any) => {
+          Alert.alert("บันทึกไม่สำเร็จ", e?.message ?? "เกิดข้อผิดพลาด");
+        },
+      }
+    );
   };
+
+  // Loading / Error states
+  if (isLoading || isFetching) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator />
+        <Text style={{ marginTop: 8, color: "#64748B" }}>กำลังโหลดข้อมูล...</Text>
+      </View>
+    );
+  }
+  if (isError) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 16 }}>
+        <Text style={{ color: "#DC2626", fontWeight: "700" }}>โหลดข้อมูลไม่สำเร็จ</Text>
+        <TouchableOpacity
+          onPress={() => refetch()}
+          style={{
+            marginTop: 10,
+            paddingHorizontal: 16,
+            paddingVertical: 10,
+            backgroundColor: "#E2E8F0",
+            borderRadius: 8,
+          }}
+        >
+          <Text>ลองอีกครั้ง</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+  if (!current) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 16 }}>
+        <Text style={{ color: "#64748B" }}>ไม่พบสาขาที่ต้องการแก้ไข</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: "#F6F8FB" }}>
@@ -109,6 +175,11 @@ export default function EditStore() {
             />
 
             <Text style={[styles.groupTitle, { marginTop: 12 }]}>บัญชีรับเงินที่เชื่อมต่อ</Text>
+            {linked.length === 0 && (
+              <Text style={{ color: "#94A3B8", marginBottom: 8 }}>
+                ยังไม่มีบัญชีเชื่อมต่อ (เชื่อมต่อได้ในหน้าจัดการบัญชี)
+              </Text>
+            )}
             {linked.map((a) => (
               <View key={a.id} style={styles.rowBetween}>
                 <View>
@@ -171,7 +242,11 @@ export default function EditStore() {
           </SectionCard>
 
           <View style={{ height: 12 }} />
-          <PrimaryButton title="บันทึก" onPress={onSubmit} />
+          <PrimaryButton
+            title={isSaving ? "กำลังบันทึก..." : "บันทึก"}
+            onPress={onSubmit}
+            disabled={isSaving}
+          />
         </ScrollView>
       </View>
     </View>
