@@ -1,4 +1,4 @@
-// app/(tabs)/stores/addStore.tsx
+// app/(tabs)/stores/addStore.tsx 
 import * as React from "react";
 import {
   View,
@@ -22,44 +22,25 @@ import {
   useCreateStore,
   type StoreBranch,
 } from "../../../lib/service/storeService";
-import { getJSON } from "../../../lib/storage";
+import { useLocalAuthQuery } from "../../../lib/authService";
 
 type LinkedAccount = { id: string; bank: string; number: string; enabled: boolean };
 
 export default function AddStore() {
   const router = useRouter();
 
-  // ── โหลด userId จาก AsyncStorage ─────────────────────────────
-  // คาดหวังเก็บไว้ที่ key: "app.user" เป็น { id: number, ... }
-  const [userId, setUserId] = React.useState<number | null>(null);
-  const [loadingUser, setLoadingUser] = React.useState(true);
+  // ข้อมูลผู้ใช้ไว้ทักทาย
+  const { data: auth } = useLocalAuthQuery();
+  const displayName =
+    auth?.user?.name_th || auth?.user?.username || auth?.user?.email || "ผู้ใช้งาน";
 
-  React.useEffect(() => {
-    (async () => {
-      try {
-        const user = await getJSON<{ id?: number }>("app.user", {});
-        if (typeof user?.id === "number" && user.id > 0) {
-          setUserId(user.id);
-        } else {
-          console.warn("[AddStore] ⚠️ ไม่พบ app.user.id ใน storage — fallback 1 ชั่วคราว");
-          setUserId(1); // TODO: ให้ auth เก็บ user.id ที่ถูกต้อง แล้วลบบรรทัดนี้
-        }
-      } catch (e) {
-        console.warn("[AddStore] อ่าน userId ไม่ได้:", e);
-        setUserId(1); // fallback
-      } finally {
-        setLoadingUser(false);
-      }
-    })();
-  }, []);
-
-  // ใช้ hook สำหรับสร้าง (ผูกกับ userId)
-  const { mutate: createMutate, isPending: isCreating } = useCreateStore(userId ?? undefined);
+  // ใช้ hook สำหรับสร้าง (ไม่ต้องส่ง userId — service จะดึงเอง)
+  const { mutate: createMutate, isPending: isCreating } = useCreateStore();
 
   // ── form state ────────────────────────────────────────────────
   const [branchName, setBranchName] = React.useState("");
   const [linked, setLinked] = React.useState<LinkedAccount[]>([
-    // เดโม่ UI – ยังไม่ผูกกับ backend บัญชีธนาคารในหน้านี้
+    // เดโม่ UI – ยังไม่ผูก backend บัญชีธนาคารในหน้านี้
     { id: "a1", bank: "แอนด์ แอนด์", number: "4327999134", enabled: true },
     { id: "a2", bank: "แอนด์ แอนด์", number: "1115356122", enabled: false },
   ]);
@@ -79,10 +60,6 @@ export default function AddStore() {
       Alert.alert("กรอกข้อมูลไม่ครบ", "โปรดระบุชื่อสาขาร้านค้า");
       return;
     }
-    if (!userId || userId <= 0) {
-      Alert.alert("ไม่พบผู้ใช้", "ไม่สามารถระบุผู้ใช้สำหรับสร้างสาขาได้");
-      return;
-    }
 
     // payload สำหรับ service (service จะ map เป็น body ของ /room2/create)
     const payload: Omit<StoreBranch, "id"> = {
@@ -93,8 +70,6 @@ export default function AddStore() {
       hideSenderAcc,
       hideReceiverAcc,
     };
-
-    console.log("[AddStore] userId =", userId, "payload =", payload);
 
     createMutate(payload, {
       onSuccess: () => {
@@ -111,16 +86,6 @@ export default function AddStore() {
     });
   };
 
-  // แสดงโหลดระหว่างดึง userId
-  if (loadingUser) {
-    return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator />
-        <Text style={{ marginTop: 8, color: "#64748B" }}>กำลังเตรียมข้อมูลผู้ใช้...</Text>
-      </View>
-    );
-  }
-
   return (
     <View style={{ flex: 1, backgroundColor: "#F6F8FB" }}>
       {/* Gradient header (โปรไฟล์ด้านขวา) */}
@@ -129,7 +94,7 @@ export default function AddStore() {
           <Link href="/(tabs)/profile" asChild>
             <TouchableOpacity style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
               <MaterialCommunityIcons name="storefront-outline" size={18} color="#EAF4FF" />
-              <Text style={{ color: "#EAF4FF" }}>Hi, Yada</Text>
+              <Text style={{ color: "#EAF4FF" }}>Hi, {displayName}</Text>
             </TouchableOpacity>
           </Link>
         }

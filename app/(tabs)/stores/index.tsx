@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
   RefreshControl,
+  Pressable,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
@@ -21,12 +22,21 @@ import {
   useStores,
   type StoreBranch,
 } from "../../../lib/service/storeService";
+import { useLocalAuthQuery } from "../../../lib/authService"; // ✅ ใช้ชื่อผู้ใช้จริง
 
 export default function StoresScreen() {
   const router = useRouter();
 
   // โหลดรายการสาขาจาก backend
   const { data: items, isLoading, isError, refetch, isFetching } = useStores();
+
+  // ข้อมูลผู้ใช้ (สำหรับ hi, …)
+  const { data: auth } = useLocalAuthQuery();
+  const displayName =
+    auth?.user?.name_th ||
+    auth?.user?.username ||
+    auth?.user?.email ||
+    "ผู้ใช้งาน";
 
   // ลบสาขา
   const delMut = useDeleteStore();
@@ -70,51 +80,55 @@ export default function StoresScreen() {
     Alert.alert("สร้าง LINE Group", `สาขา: ${branch.name}\n(เดโม่)`);
   };
 
-  const renderItem = ({ item }: { item: StoreBranch }) => (
-    <View style={{ paddingHorizontal: 12, paddingTop: 4 }}>
-      {/* คลิกทั้งการ์ด -> ไปหน้า detailStore */}
-      <TouchableOpacity
-        activeOpacity={0.85}
-        onPress={() =>
-          router.push({
-            pathname: "/(tabs)/stores/detailStore",
-            params: { id: item.id },
-          })
-        }
-        disabled={delMut.isPending} // กันคลิกระหว่างกำลังลบ
-      >
+  const renderItem = ({ item }: { item: StoreBranch }) => {
+    const deleting = delMut.isPending;
+
+    return (
+      <View style={{ paddingHorizontal: 12, paddingTop: 4 }}>
         <SectionCard>
           <View style={{ flexDirection: "row", alignItems: "center" }}>
-            {/* avatar */}
-            <View style={styles.avatar} />
+            {/* โซนซ้าย = กดแล้วไป detail เฉพาะโซนนี้ */}
+            <Pressable
+              style={{ flex: 1, flexDirection: "row", alignItems: "center", paddingRight: 8 }}
+              onPress={() =>
+                router.push({
+                  pathname: "/(tabs)/stores/detailStore",
+                  params: { id: item.id },
+                })
+              }
+              disabled={deleting}
+            >
+              {/* avatar */}
+              <View style={styles.avatar} />
+              {/* ชื่อ + สถานะ */}
+              <View style={{ flex: 1 }}>
+                <Text style={styles.branchName}>{item.name}</Text>
 
-            {/* ชื่อ + สถานะ */}
-            <View style={{ flex: 1 }}>
-              <Text style={styles.branchName}>{item.name}</Text>
-
-              <View
-                style={[
-                  styles.pill,
-                  item.status === "เชื่อมต่อเรียบร้อย" ? styles.pillGreen : styles.pillGray,
-                ]}
-              >
-                <Text
+                <View
                   style={[
-                    styles.pillText,
-                    item.status === "เชื่อมต่อเรียบร้อย" ? { color: "#047857" } : { color: "#6B7280" },
+                    styles.pill,
+                    item.status === "เชื่อมต่อเรียบร้อย" ? styles.pillGreen : styles.pillGray,
                   ]}
                 >
-                  {item.status}
-                </Text>
+                  <Text
+                    style={[
+                      styles.pillText,
+                      item.status === "เชื่อมต่อเรียบร้อย"
+                        ? { color: "#047857" }
+                        : { color: "#6B7280" },
+                    ]}
+                  >
+                    {item.status}
+                  </Text>
+                </View>
               </View>
-            </View>
+            </Pressable>
 
-            {/* ปุ่มแก้ไข/ลบ */}
+            {/* โซนปุ่มขวา = กดแล้วไม่ไป detail */}
             <View style={{ flexDirection: "row", gap: 10 }}>
               <TouchableOpacity
-                style={[styles.iconBtn, delMut.isPending && { opacity: 0.6 }]}
-                disabled={delMut.isPending}
-                onPressOut={(e) => e.stopPropagation?.()}
+                style={[styles.iconBtn, deleting && { opacity: 0.6 }]}
+                disabled={deleting}
                 onPress={() =>
                   router.push({
                     pathname: "/(tabs)/stores/editStore",
@@ -127,13 +141,12 @@ export default function StoresScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.iconBtn, delMut.isPending && { opacity: 0.6 }]}
-                disabled={delMut.isPending}
-                onPressOut={(e) => e.stopPropagation?.()}
+                style={[styles.iconBtn, deleting && { opacity: 0.6 }]}
+                disabled={deleting}
                 onPress={() => confirmDelete(item.id)}
                 accessibilityLabel="ลบสาขา"
               >
-                {delMut.isPending ? (
+                {deleting ? (
                   <ActivityIndicator size="small" />
                 ) : (
                   <Ionicons name="trash-outline" size={16} color="#DC2626" />
@@ -147,26 +160,24 @@ export default function StoresScreen() {
           <View style={{ flexDirection: "row", gap: 12 }}>
             <TouchableOpacity
               style={styles.ghostBtn}
-              onPressOut={(e) => e.stopPropagation?.()}
               onPress={() => copyCode(item.code)}
-              disabled={delMut.isPending}
+              disabled={deleting}
             >
               <Text style={styles.ghostBtnText}>คัดลอก code</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.ghostBtn}
-              onPressOut={(e) => e.stopPropagation?.()}
               onPress={() => createLineGroup(item)}
-              disabled={delMut.isPending}
+              disabled={deleting}
             >
               <Text style={styles.ghostBtnText}>สร้าง line group</Text>
             </TouchableOpacity>
           </View>
         </SectionCard>
-      </TouchableOpacity>
-    </View>
-  );
+      </View>
+    );
+  };
 
   return (
     <FlatList
@@ -185,7 +196,7 @@ export default function StoresScreen() {
               <Link href="/(tabs)/profile" asChild>
                 <TouchableOpacity style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                   <MaterialCommunityIcons name="storefront-outline" size={18} color="#EAF4FF" />
-                  <Text style={{ color: "#EAF4FF" }}>Hi, Yada</Text>
+                  <Text style={{ color: "#EAF4FF" }}>Hi, {displayName}</Text>
                 </TouchableOpacity>
               </Link>
             }

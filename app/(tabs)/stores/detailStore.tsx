@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
@@ -15,13 +16,19 @@ import { Link, useLocalSearchParams, useRouter } from "expo-router";
 import GradientHeader from "../../../Modal/components/ui/GradientHeader";
 
 import { useStores } from "../../../lib/service/storeService";
+import { useLocalAuthQuery } from "../../../lib/authService";
 
 export default function DetailStore() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
 
+  // Header: ชื่อผู้ใช้จริง
+  const { data: auth } = useLocalAuthQuery();
+  const displayName =
+    auth?.user?.name_th || auth?.user?.username || auth?.user?.email || "ผู้ใช้งาน";
+
   // โหลดรายการทั้งหมดแล้วหา item ที่ id ตรงกับพาธ
-  const { data, isLoading, isError, refetch } = useStores();
+  const { data, isLoading, isError, refetch, isFetching } = useStores();
   const item = React.useMemo(
     () => (data ?? []).find((x) => x.id === String(id)),
     [data, id]
@@ -41,7 +48,12 @@ export default function DetailStore() {
     Alert.alert("คัดลอกสำเร็จ", "คัดลอก Code เรียบร้อย");
   };
 
-  if (isLoading) {
+  const onEdit = () => {
+    // ไปหน้าแก้ไข (รองรับเส้นทางแบบ editStore?id=...)
+    router.push({ pathname: "/(tabs)/stores/editStore", params: { id: String(id) } });
+  };
+
+  if (isLoading || isFetching) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
         <ActivityIndicator />
@@ -98,14 +110,20 @@ export default function DetailStore() {
           <Link href="/(tabs)/profile" asChild>
             <TouchableOpacity style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
               <MaterialCommunityIcons name="storefront-outline" size={18} color="#EAF4FF" />
-              <Text style={{ color: "#EAF4FF" }}>Hi, Yada</Text>
+              <Text style={{ color: "#EAF4FF" }}>Hi, {displayName}</Text>
             </TouchableOpacity>
           </Link>
         }
       />
 
       {/* แผงขาวโค้ง + ปุ่มปิดมุมขวา */}
-      <ScrollView style={styles.panel} contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView
+        style={styles.panel}
+        contentContainerStyle={{ paddingBottom: 40 }}
+        refreshControl={
+          <RefreshControl refreshing={isFetching} onRefresh={() => refetch()} />
+        }
+      >
         {/* ปุ่มปิด */}
         <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
           <Ionicons name="close" size={18} color="#0F172A" />
@@ -117,7 +135,7 @@ export default function DetailStore() {
             <MaterialCommunityIcons name="storefront-outline" size={32} color="#10B981" />
           </View>
 
-          <View style={{ marginTop: 6 }}>
+          <View style={{ marginTop: 6, alignItems: "center" }}>
             <Text style={styles.storeTopLabel}>ร้าน บนแพลตฟอร์ม</Text>
             <Text style={styles.storeTitle}>{storeName}</Text>
           </View>
@@ -159,7 +177,20 @@ export default function DetailStore() {
 
         {/* วิธีเชื่อมต่อ Line */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>วิธีเชื่อมต่อ Line</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <Text style={styles.cardTitle}>วิธีเชื่อมต่อ Line</Text>
+            <TouchableOpacity
+              onPress={onEdit}
+              style={{
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                backgroundColor: "#2563EB",
+                borderRadius: 8,
+              }}
+            >
+              <Text style={{ color: "#fff", fontWeight: "800" }}>แก้ไขสาขา</Text>
+            </TouchableOpacity>
+          </View>
 
           <View style={{ gap: 4, marginTop: 6 }}>
             <Text style={styles.stepText}>1. เปิดเมนู Code</Text>
@@ -199,13 +230,11 @@ export default function DetailStore() {
         {/* บัญชีรับเงินที่เชื่อมต่อ */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>บัญชีรับเงินที่เชื่อมต่อ</Text>
-
           <View style={{ height: 10 }} />
-          {/* ถ้ายังไม่มี endpoint สำหรับบัญชีที่ผูกกับสาขา แสดงข้อความไว้ก่อน */}
           <Text style={{ color: "#64748B" }}>
             ยังไม่มีข้อมูลบัญชีที่เชื่อมต่อสำหรับสาขานี้
           </Text>
-          {/* เมื่อพร้อมใช้งาน API บัญชี: map รายการบัญชีที่ได้จาก backend ตรงนี้แทน */}
+          {/* TODO: เมื่อมี endpoint บัญชีของสาขา ค่อย map รายการตรงนี้ */}
         </View>
       </ScrollView>
     </View>

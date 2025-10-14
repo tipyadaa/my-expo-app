@@ -1,6 +1,7 @@
 ﻿// src/lib/service/storeService.ts
-import { httpGet, httpPost, httpPut, httpDelete, API_BASE } from "../http";
+import { httpGet, httpPost, httpPut, httpDelete } from "../http";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { getCurrentUserId } from "../authSession";
 
 /* ───────────────────────────────
  * UI Type ที่จอใช้
@@ -29,11 +30,17 @@ const toUI = (r: any, i: number): StoreBranch => {
 
   const showTransferorRaw = r.show_transferor ?? r.ShowTransferor ?? false;
   const showRecipientRaw = r.show_recipient ?? r.ShowRecipient ?? false;
-  const showTransferor =
-    typeof showTransferorRaw === "number" ? showTransferorRaw === 1 : !!showTransferorRaw;
-  const showRecipient =
-    typeof showRecipientRaw === "number" ? showRecipientRaw === 1 : !!showRecipientRaw;
 
+  // รองรับทั้ง number|boolean|string ("1"/"0")
+  const normalizeBool = (val: any) => {
+    if (typeof val === "boolean") return val;
+    if (typeof val === "number") return val === 1;
+    if (typeof val === "string") return val === "1" || val.toLowerCase() === "true";
+    return false;
+  };
+
+  const showTransferor = normalizeBool(showTransferorRaw);
+  const showRecipient = normalizeBool(showRecipientRaw);
   const min = r.min_receive ?? r.MinRecieve ?? 0;
 
   return {
@@ -48,8 +55,8 @@ const toUI = (r: any, i: number): StoreBranch => {
 };
 
 /** แปลง UI -> payload สำหรับสร้าง */
-const toApiCreate = (ui: Omit<StoreBranch, "id">, userId?: number) => ({
-  user_id: userId ?? 0,
+const toApiCreate = (ui: Omit<StoreBranch, "id">, userId: number) => ({
+  user_id: userId,
   line_group_id: ui.status === "เชื่อมต่อเรียบร้อย" ? "connected" : "",
   room_name: ui.name,
   qr_token: ui.code,
@@ -79,9 +86,9 @@ const toApiUpdate = (id: string, uiPatch: Partial<StoreBranch>) => {
 };
 
 /* ───────────────────────────────
- * Endpoints (จาก router ใหม่)
+ * Endpoints (จาก router)
  * GET    /api/v1/room2/get
- * GET    /api/v1/room2/get/:id         // (หมายถึง UserID ใน repo)
+ * GET    /api/v1/room2/get/:id         // (หมายถึง UserID)
  * POST   /api/v1/room2/create
  * PUT    /api/v1/room2/update
  * DELETE /api/v1/room2/delete/:id      // id = Room.ID
@@ -89,48 +96,45 @@ const toApiUpdate = (id: string, uiPatch: Partial<StoreBranch>) => {
  * ─────────────────────────────── */
 
 /* ───────────────────────────────
- * Core calls + logs
+ * Core calls
  * ─────────────────────────────── */
+
+/** ดึงรายการสาขาของ "ผู้ใช้ที่ล็อกอินอยู่" */
 export async function getStores(): Promise<StoreBranch[]> {
-  const ep = "/room2/get";
-  const raw = await httpGet<any>(ep);
-  const rows = unwrap<any[]>(raw) ?? raw ?? [];
-  if (!Array.isArray(rows)) {
-    return [];
-  }
-  const mapped = rows.map(toUI);
-  return mapped;
+  const myId = await getCurrentUserId();
+  return getStoresByUser(myId);
 }
 
-/** ถ้าต้องการดึงเฉพาะของผู้ใช้ (ตาม UserID) */
+/** ดึงสาขาเฉพาะของ userId ที่ระบุ (กรณี admin หรือมุมมองพิเศษ) */
 export async function getStoresByUser(userId: number): Promise<StoreBranch[]> {
   const ep = `/room2/get/${userId}`;
   const raw = await httpGet<any>(ep);
   const rows = unwrap<any[]>(raw) ?? raw ?? [];
-  if (!Array.isArray(rows)) {
-    return [];
-  }
-  const mapped = rows.map(toUI);
-  return mapped;
+  if (!Array.isArray(rows)) return [];
+  return rows.map(toUI);
 }
 
+/** สร้างสาขาใหม่ (ถ้าไม่ส่ง userId มาก็ใช้ของผู้ใช้ที่ล็อกอิน) */
 export async function createStore(
   payload: Omit<StoreBranch, "id">,
   userId?: number
 ): Promise<{ id: string }> {
   const ep = "/room2/create";
-  const body = toApiCreate(payload, userId);
+  const uid = typeof userId === "number" ? userId : await getCurrentUserId();
+  const body = toApiCreate(payload, uid);
   const res = await httpPost<any>(ep, body);
   const id = String(res?.data?.id ?? res?.id ?? "");
   return { id };
 }
 
+/** อัปเดตสาขา (ตาม Room.ID) */
 export async function updateStore(id: string, patch: Partial<StoreBranch>): Promise<void> {
   const ep = "/room2/update";
   const body = toApiUpdate(id, patch);
   await httpPut<any>(ep, body);
 }
 
+/** ลบสาขา (ตาม Room.ID) */
 export async function deleteStore(id: string): Promise<void> {
   const ep = `/room2/delete/${id}`;
   await httpDelete<any>(ep);

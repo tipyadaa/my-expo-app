@@ -1,9 +1,13 @@
-// ../../lib/service/historyService.ts
-import { httpGet, httpPost, httpPut, httpDelete } from "../../lib/http";
+// src/lib/service/historyService.ts
+import { httpGet, httpPost, httpPut, httpDelete } from "../http";
+import { getCurrentUserId } from "../authSession";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+
+/* ───────────────────────────────── Types ───────────────────────────────── */
 
 type AnyApiResponse<T> = {
-  code?: number;           // บางแบ็กเอนด์ใช้ code
-  status_code?: number;    // แบ็กเอนด์ของคุณใช้ status_code
+  code?: number;        // บาง backend ใช้ code
+  status_code?: number; // ของคุณใช้ status_code
   message?: string;
   data?: T | null;
 };
@@ -23,58 +27,77 @@ function normalize<T>(res: AnyApiResponse<T>) {
 
 const BASE = "/transaction";
 
+/* ─────────────────────────────── Core Calls ─────────────────────────────── */
+
 export async function getTransactionsAll() {
   const raw = await httpGet<AnyApiResponse<any[]>>(`${BASE}/get`);
-  const res = normalize<any[]>(raw);
+  const res = normalize<any[]>(raw as AnyApiResponse<any[]>);
   if (res.code !== 2006) throw new Error(res.message || "Fetch transactions failed");
-  return Array.isArray(res.data) ? res.data.map(mapDto) : [];
+  const rows = Array.isArray(res.data) ? res.data : [];
+  return rows.map(mapDto);
 }
 
 export async function getTransactionsByUserId(userId: number) {
   const raw = await httpGet<AnyApiResponse<any[]>>(`${BASE}/get/${userId}`);
-  const res = normalize<any[]>(raw);
+  const res = normalize<any[]>(raw as AnyApiResponse<any[]>);
   if (res.code !== 2006) throw new Error(res.message || "Fetch user transactions failed");
-  return Array.isArray(res.data) ? res.data.map(mapDto) : [];
+  const rows = Array.isArray(res.data) ? res.data : [];
+  return rows.map(mapDto);
+}
+
+/** ดึงประวัติของ “ผู้ใช้ที่ล็อกอินอยู่” โดยอัตโนมัติ */
+export async function getMyTransactions() {
+  const userId = await getCurrentUserId();
+  return getTransactionsByUserId(userId);
 }
 
 export async function deleteTransaction(id: number) {
   const raw = await httpDelete<AnyApiResponse<null>>(`${BASE}/delete/${id}`);
-  const res = normalize<null>(raw);
+  const res = normalize<null>(raw as AnyApiResponse<null>);
   if (res.code !== 2006) throw new Error(res.message || "Delete transaction failed");
 }
 
-// ====== mapper (ปรับ field ให้ตรง DTO จากแบ็กเอนด์) ======
+/* ─────────────────────────────── Mapper & Utils ─────────────────────────────── */
+
 export type SureSureTransaction = ReturnType<typeof mapDto>;
 function mapDto(x: any) {
+  // เผื่อกรณี key เพี้ยน/ตัวพิมพ์ใหญ่เล็กไม่ตรง
+  const pick = (obj: any, keys: string[], fallback: any = null) => {
+    for (const k of keys) {
+      if (obj?.[k] !== undefined && obj?.[k] !== null) return obj[k];
+    }
+    return fallback;
+  };
+
   return {
-    id: x.id,
-    userId: x.user_id,
-    qrCode: x.qr_code,
-    refNo: x.ref_no,
-    lineUserId: x.line_user_id,
-    lineGroupId: x.line_group_id,
-    amount: x.amount,
-    cstid: x.cstid,
-    rquid: x.rquid,
-    txid: x.txid,
-    senderBankCode: x.sender_bank_code,
-    senderAccountNo: x.sender_account_no,
-    senderName: x.sender_name,
-    senderName2: x.sender_name2,
-    receiveBankCode: x.receive_bank_code,
-    receiveAccountNo: x.receive_account_no,
-    receiveName: x.receive_name,
-    receiveName2: x.receive_name2,
-    proxyAccountNo: x.proxy_account_no,
-    ref1: x.ref1,
-    ref2: x.ref2,
-    message: x.message,
-    statusCode: x.status_code,
-    status: x.status,                 // SUCCESS / FAIL / ฯลฯ
-    transDate: x.trans_date,
-    transTime: x.trans_time,          // ถ้ามีบางรายการ key เพี้ยน ให้กัน null ไว้ใช้ได้
-    createdDate: x.created_date,
-    updatedDate: x.updated_date,
+    id: pick(x, ["id", "ID"]),
+    userId: pick(x, ["user_id", "UserID"]),
+    qrCode: pick(x, ["qr_code", "QRCode"]),
+    refNo: pick(x, ["ref_no", "RefNo"]),
+    lineUserId: pick(x, ["line_user_id", "LineUserID"]),
+    lineGroupId: pick(x, ["line_group_id", "LineGroupID"]),
+    amount: Number(pick(x, ["amount", "Amount"], 0)) || 0,
+    cstid: pick(x, ["cstid", "CSTID"]),
+    rquid: pick(x, ["rquid", "RQUID"]),
+    txid: pick(x, ["txid", "TXID"]),
+    senderBankCode: pick(x, ["sender_bank_code", "SenderBankCode"]),
+    senderAccountNo: pick(x, ["sender_account_no", "SenderAccountNo"]),
+    senderName: pick(x, ["sender_name", "SenderName"]),
+    senderName2: pick(x, ["sender_name2", "SenderName2"]),
+    receiveBankCode: pick(x, ["receive_bank_code", "ReceiveBankCode"]),
+    receiveAccountNo: pick(x, ["receive_account_no", "ReceiveAccountNo"]),
+    receiveName: pick(x, ["receive_name", "ReceiveName"]),
+    receiveName2: pick(x, ["receive_name2", "ReceiveName2"]),
+    proxyAccountNo: pick(x, ["proxy_account_no", "ProxyAccountNo"]),
+    ref1: pick(x, ["ref1", "Ref1"]),
+    ref2: pick(x, ["ref2", "Ref2"]),
+    message: pick(x, ["message", "Message"]),
+    statusCode: pick(x, ["status_code", "StatusCode"]),
+    status: pick(x, ["status", "Status"]), // SUCCESS / FAIL / ฯลฯ
+    transDate: pick(x, ["trans_date", "TransDate"]),
+    transTime: pick(x, ["trans_time", "TransTime"]),
+    createdDate: pick(x, ["created_date", "CreatedDate"]),
+    updatedDate: pick(x, ["updated_date", "UpdatedDate"]),
   };
 }
 
@@ -92,4 +115,38 @@ export function getHistoryPill(
   if (s.includes("สำเร็จ") || s.includes("success")) return { label: "สำเร็จ", tone: "success" };
   if (s.includes("รอดำเนินการ") || s.includes("pending")) return { label: "รอดำเนินการ", tone: "warning" };
   return { label: status || "ไม่ทราบสถานะ", tone: "neutral" };
+}
+
+/* ─────────────────────────────── React Query Hooks ─────────────────────────────── */
+
+const qk = {
+  all: ["transactions"] as const,
+  byUser: (uid: number) => ["transactions", "user", uid] as const,
+};
+
+export function useTransactions() {
+  return useQuery({
+    queryKey: qk.all,
+    queryFn: getTransactionsAll,
+  });
+}
+
+/** ดึงของ “ฉัน” (อ่าน user_id จาก session) */
+export function useMyTransactions() {
+  return useQuery({
+    queryKey: ["transactions", "me"],
+    queryFn: getMyTransactions,
+  });
+}
+
+export function useDeleteTransaction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => deleteTransaction(id),
+    onSuccess: () => {
+      // ล้างแคชทั้งของทั้งหมดและของฉัน
+      qc.invalidateQueries({ queryKey: qk.all });
+      qc.invalidateQueries({ queryKey: ["transactions", "me"] });
+    },
+  });
 }

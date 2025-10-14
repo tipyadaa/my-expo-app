@@ -20,7 +20,7 @@ export default function AppLogin() {
   };
 
   const onLoginWithEmail = () => {
-    router.push("/auth/email-login"); // ไปหน้าอีเมลล็อกอิน
+    router.push("/login/register/pageLogin"); // ไปหน้าอีเมลล็อกอิน
   };
 
   const onRegister = () => {
