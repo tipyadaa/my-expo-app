@@ -1,13 +1,23 @@
 // app/(tabs)/package.tsx
 import * as React from "react";
 import {
-  View, Text, TouchableOpacity, StyleSheet, FlatList, Modal, ActivityIndicator,
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  FlatList,
+  Modal,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
+
 import GradientHeader from "../../Modal/components/ui/GradientHeader";
 import { fetchPlans, type Plan } from "../../lib/service/packageService";
+// ✅ ใช้จาก profileService (มี updateUserPackage)
+import { updateUserPackage } from "../../lib/service/profileService";
 
 export default function PackageScreen() {
   const router = useRouter();
@@ -18,6 +28,8 @@ export default function PackageScreen() {
 
   const [confirmVisible, setConfirmVisible] = React.useState(false);
   const [selectedPlan, setSelectedPlan] = React.useState<Plan | null>(null);
+
+  const [updating, setUpdating] = React.useState(false); // สถานะตอนอัปเดตแพ็กเกจ
 
   React.useEffect(() => {
     (async () => {
@@ -40,13 +52,34 @@ export default function PackageScreen() {
     setConfirmVisible(true);
   };
 
-  const confirmAndGo = () => {
-    setConfirmVisible(false);
-    router.push("/modals/scanpay");
+  // ✅ อัปเดตแพ็กเกจจริงบน backend แล้วค่อยปิด modal
+  const confirmAndGo = async () => {
+    if (!selectedPlan) return;
+    try {
+      setUpdating(true);
+      await updateUserPackage({
+        // ❗ใส่วงเล็บป้องกัน error การผสม ?? และ ||
+        packageId: (selectedPlan.id_num ?? Number(selectedPlan.id)) || 0,
+        quotaAll: selectedPlan.quota,
+        days: selectedPlan.days,
+      });
+      setConfirmVisible(false);
+      Alert.alert("สำเร็จ", "อัปเดตแพ็กเกจเรียบร้อยแล้ว", [
+        { text: "ตกลง", onPress: () => router.back() },
+      ]);
+    } catch (err: any) {
+      console.error("updateUserPackage error:", err);
+      Alert.alert(
+        "อัปเดตไม่สำเร็จ",
+        err?.message || "กรุณาลองใหม่อีกครั้งหรือติดต่อผู้ดูแลระบบ"
+      );
+    } finally {
+      setUpdating(false);
+    }
   };
 
   const renderItem = ({ item }: { item: Plan }) => {
-    const isPro = item.name.toLowerCase().includes("pro"); // optional highlight
+    const isPro = item.name?.toLowerCase?.().includes("pro"); // optional highlight
     return (
       <View style={styles.card}>
         <View style={styles.leftCol}>
@@ -64,7 +97,12 @@ export default function PackageScreen() {
             <Feature text={`${item.quota} สลิป`} />
             <Feature text={`ราคาเฉลี่ย ${item.perSlip.toFixed(2)} บาท / สลิป`} />
             <Feature text={`ระยะเวลา ${item.days} วัน`} />
-            <LinearGradient colors={["#1E62FF", "#12C2B1"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.buyBtn}>
+            <LinearGradient
+              colors={["#1E62FF", "#12C2B1"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.buyBtn}
+            >
               <TouchableOpacity style={styles.buyBtnHit} onPress={() => openConfirm(item)}>
                 <Text style={styles.buyBtnText}>{item.cta ?? "ซื้อเลย"}</Text>
               </TouchableOpacity>
@@ -77,12 +115,14 @@ export default function PackageScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: "#F6F8FB" }}>
-      <GradientHeader right={
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-          <MaterialCommunityIcons name="storefront-outline" size={18} color="#EAF4FF" />
-          <Text style={{ color: "#EAF4FF" }}>Hi, Yada</Text>
-        </View>
-      }/>
+      <GradientHeader
+        right={
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <MaterialCommunityIcons name="storefront-outline" size={18} color="#EAF4FF" />
+            <Text style={{ color: "#EAF4FF" }}>Hi, Yada</Text>
+          </View>
+        }
+      />
 
       <View style={styles.panel}>
         <View style={styles.titleBar}>
@@ -107,7 +147,7 @@ export default function PackageScreen() {
         ) : (
           <FlatList
             data={plans}
-            keyExtractor={(it) => it.id}
+            keyExtractor={(it) => (it.id ?? it.id_num ?? Math.random().toString()).toString()}
             renderItem={renderItem}
             ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
             contentContainerStyle={{ paddingBottom: 20 }}
@@ -116,7 +156,13 @@ export default function PackageScreen() {
         )}
       </View>
 
-      <Modal visible={confirmVisible} transparent animationType="fade" onRequestClose={() => setConfirmVisible(false)}>
+      {/* Modal ยืนยันการเปลี่ยนแพ็กเกจ */}
+      <Modal
+        visible={confirmVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setConfirmVisible(false)}
+      >
         <View style={styles.modalBackdrop}>
           <View style={styles.modalBox}>
             <MaterialCommunityIcons name="alert-circle-outline" size={54} color="#DC2626" />
@@ -125,14 +171,25 @@ export default function PackageScreen() {
               คุณมีแพ็กเกจที่ใช้งานอยู่{"\n"}คุณยืนยันที่จะเปลี่ยนแพ็กเกจใหม่หรือไม่
             </Text>
             <Text style={styles.modalNote}>**จำนวนตรวจสอบสลิปที่คุณเหลืออยู่จะโดนรีเซ็ตใหม่</Text>
-            <View style={styles.modalRow}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setConfirmVisible(false)}>
-                <Text style={styles.cancelText}>ไม่เปลี่ยนแพ็กเกจ</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.confirmBtn} onPress={confirmAndGo}>
-                <Text style={styles.confirmText}>เปลี่ยนแพ็กเกจ</Text>
-              </TouchableOpacity>
-            </View>
+
+            {updating ? (
+              <View style={{ marginTop: 12, alignItems: "center" }}>
+                <ActivityIndicator size="small" color="#0A57FF" />
+                <Text style={{ marginTop: 6, color: "#64748B" }}>กำลังอัปเดตแพ็กเกจ...</Text>
+              </View>
+            ) : (
+              <View style={styles.modalRow}>
+                <TouchableOpacity
+                  style={styles.cancelBtn}
+                  onPress={() => setConfirmVisible(false)}
+                >
+                  <Text style={styles.cancelText}>ไม่เปลี่ยนแพ็กเกจ</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.confirmBtn} onPress={confirmAndGo}>
+                  <Text style={styles.confirmText}>เปลี่ยนแพ็กเกจ</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         </View>
       </Modal>
@@ -150,26 +207,74 @@ function Feature({ text }: { text: string }) {
 }
 
 const styles = StyleSheet.create({
-  panel: { flex: 1, backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, marginTop: -16, paddingTop: 14, paddingHorizontal: 12 },
-  titleBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
+  panel: {
+    flex: 1,
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    marginTop: -16,
+    paddingTop: 14,
+    paddingHorizontal: 12,
+  },
+  titleBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
   title: { fontSize: 22, fontWeight: "900", color: "#0F172A", textAlign: "center" },
-  subtitle: { color: "#8AA0B4", textAlign: "center", marginBottom: 12, lineHeight: 18, fontSize: 12 },
-  card: { flexDirection: "row", backgroundColor: "#fff", borderRadius: 12, borderWidth: 1, borderColor: "#E6EBF2", padding: 12, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 },
+  subtitle: {
+    color: "#8AA0B4",
+    textAlign: "center",
+    marginBottom: 12,
+    lineHeight: 18,
+    fontSize: 12,
+  },
+  card: {
+    flexDirection: "row",
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E6EBF2",
+    padding: 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
   leftCol: { width: 86, alignItems: "flex-start" },
   rightCol: { flex: 1, paddingLeft: 10, justifyContent: "center" },
-  tierBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, alignSelf: "flex-start", marginBottom: 6 },
+  tierBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    alignSelf: "flex-start",
+    marginBottom: 6,
+  },
   tierBasic: { backgroundColor: "#EAF2FF", borderWidth: 1, borderColor: "#BFDBFE" },
   tierPro: { backgroundColor: "#2563EB" },
   tierText: { fontWeight: "800", fontSize: 12 },
   price: { fontSize: 32, fontWeight: "900", color: "#0F172A", lineHeight: 32 },
   perMonth: { color: "#6B7280", fontSize: 12, marginTop: 2 },
-  detailBox: { backgroundColor: "#F1F7FF", borderRadius: 10, padding: 12, borderWidth: 1, borderColor: "#DCE7FF" },
+  detailBox: {
+    backgroundColor: "#F1F7FF",
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#DCE7FF",
+  },
   featureRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
   featureText: { color: "#0F172A", fontSize: 13 },
   buyBtn: { marginTop: 6, borderRadius: 10, overflow: "hidden" },
   buyBtnHit: { alignItems: "center", justifyContent: "center", paddingVertical: 8 },
   buyBtnText: { color: "#fff", fontWeight: "900" },
-  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", alignItems: "center", justifyContent: "center", padding: 20 },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
   modalBox: { width: "100%", backgroundColor: "#fff", borderRadius: 16, padding: 20, alignItems: "center" },
   modalTitle: { fontSize: 20, fontWeight: "900", marginTop: 8 },
   modalText: { color: "#1E293B", textAlign: "center", lineHeight: 20, marginTop: 6 },

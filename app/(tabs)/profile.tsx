@@ -7,22 +7,83 @@ import {
   ScrollView,
   StyleSheet,
   Alert,
+  Image,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import * as Clipboard from "expo-clipboard";
 
 import GradientHeader from "../../Modal/components/ui/GradientHeader";
 import SectionCard from "../../Modal/components/ui/SectionCard";
 import ProgressBar from "../../Modal/components/ui/ProgressBar";
 import PrimaryButton from "../../Modal/components/ui/PrimaryButton";
 
+import { useMyProfile } from "../../lib/hooks/useProfile";
+import { clearStoredAuth } from "../../lib/authService";
+import { fetchPlans, type Plan } from "../../lib/service/packageService";
+
 export default function ProfileScreen() {
   const router = useRouter();
+  const { data: me, isLoading, isError, refetch } = useMyProfile();
 
-  // mock data
-  const quotaUsed = 50;
-  const quotaMax = 100;
-  const expireText = "3 ก.ย. 2025";
+  // ---------- ชื่อผู้ใช้ ----------
+  const displayName =
+    me?.name_th || me?.name_en || me?.store_name || me?.username || "User";
+
+  // ---------- โหลดรายการแพ็กเกจ แล้วจับคู่กับ package_id ปัจจุบัน ----------
+  const [plans, setPlans] = React.useState<Plan[]>([]);
+  const [planMeta, setPlanMeta] = React.useState<{
+    name: string;
+    days: number;
+    quota: number;
+  } | null>(null);
+
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const data = await fetchPlans();
+        setPlans(data);
+      } catch {
+        setPlans([]);
+      }
+    })();
+  }, []);
+
+  React.useEffect(() => {
+    if (!me || plans.length === 0) return;
+    const currentPid = Number(me.package_id ?? 0);
+    const matched = plans.find(
+      (p) => (p.id_num ?? Number(p.id)) === currentPid
+    );
+    setPlanMeta({
+      name: matched?.name || me.package_name || "free trial",
+      days: matched?.days ?? 30,
+      quota: matched?.quota ?? (me.quota_all || 0),
+    });
+  }, [me, plans]);
+
+  // ---------- วันหมดอายุ (package_change_date + days) ----------
+  const expireText = React.useMemo(() => {
+    if (!me) return "-";
+    const startISO =
+      me.package_change_date || me.bill_date || me.created_date || "";
+    if (!startISO || !planMeta?.days) return "-";
+    const endISO = addDaysISO(startISO, planMeta.days);
+    return formatThaiDate(endISO);
+  }, [me, planMeta?.days]);
+
+  // ---------- รีเซ็ตการใช้งานเป็น 0 ช่วงแรกหลังเปลี่ยนแพ็กเกจ ----------
+  const minutesSinceChange = React.useMemo(() => {
+    if (!me?.package_change_date) return Infinity;
+    const t = new Date(me.package_change_date).getTime();
+    const now = Date.now();
+    return (now - t) / 60000;
+  }, [me?.package_change_date]);
+
+  const quotaUsed = minutesSinceChange <= 5 ? 0 : (me?.quota_usage ?? 0);
+  const quotaMax = planMeta?.quota ?? (me?.quota_all ?? 0);
+  const packageName = planMeta?.name || me?.package_name || "free trial";
 
   const handleLogout = () => {
     Alert.alert("ออกจากระบบ", "คุณต้องการออกจากระบบใช่หรือไม่?", [
@@ -30,14 +91,41 @@ export default function ProfileScreen() {
       {
         text: "ออกจากระบบ",
         style: "destructive",
-        onPress: () => router.replace("/appLogin"), // <-- เปลี่ยนปลายทางมาที่ /appLogin
+        onPress: async () => {
+          try {
+            if (typeof clearStoredAuth === "function") await clearStoredAuth();
+          } finally {
+            router.replace("/appLogin");
+          }
+        },
       },
     ]);
   };
 
-  const handleCopy = () => {
+  const handleCopy = async () => {
+    const apiKey = me?.token || me?.access_token || "";
+    if (!apiKey) return Alert.alert("ไม่พบ API Key");
+    await Clipboard.setStringAsync(apiKey);
     Alert.alert("คัดลอกสำเร็จ", "API Key ถูกคัดลอกแล้ว");
   };
+
+  if (isLoading)
+    return (
+      <View style={styles.loadingWrap}>
+        <ActivityIndicator />
+        <Text style={{ marginTop: 8 }}>กำลังโหลดโปรไฟล์...</Text>
+      </View>
+    );
+
+  if (isError)
+    return (
+      <View style={styles.loadingWrap}>
+        <Text>โหลดข้อมูลโปรไฟล์ไม่สำเร็จ</Text>
+        <TouchableOpacity onPress={refetch}>
+          <Text style={{ color: "#0A57FF", marginTop: 6 }}>ลองใหม่</Text>
+        </TouchableOpacity>
+      </View>
+    );
 
   return (
     <View style={{ flex: 1, backgroundColor: "#F6F8FB" }}>
@@ -45,8 +133,12 @@ export default function ProfileScreen() {
       <GradientHeader
         right={
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-            <MaterialCommunityIcons name="storefront-outline" size={18} color="#EAF4FF" />
-            <Text style={{ color: "#EAF4FF" }}>Hi, Yada</Text>
+            <MaterialCommunityIcons
+              name="storefront-outline"
+              size={18}
+              color="#EAF4FF"
+            />
+            <Text style={{ color: "#EAF4FF" }}>Hi, {displayName}</Text>
           </View>
         }
       />
@@ -57,20 +149,51 @@ export default function ProfileScreen() {
         </TouchableOpacity>
 
         <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-          {/* Header title */}
           <Text style={styles.h1}>โปรไฟล์ผู้ใช้งาน</Text>
 
-          {/* Profile Avatar */}
+          {/* รูปโปรไฟล์จริง */}
           <View style={styles.avatarWrap}>
-            <View style={styles.avatar} />
+            {me?.picture ? (
+              <Image
+                source={{ uri: me.picture }}
+                style={styles.avatarImage}
+                resizeMode="cover"
+                onError={(e) =>
+                  console.warn("⚠️ โหลดรูปไม่สำเร็จ:", e.nativeEvent.error)
+                }
+              />
+            ) : (
+              <View style={styles.avatarPlaceholder}>
+                <Ionicons
+                  name="person-circle-outline"
+                  size={80}
+                  color="#CBD5E1"
+                />
+              </View>
+            )}
           </View>
 
-          {/* Username + Password */}
+          {/* Username / Password */}
           <SectionCard>
             <Text style={styles.label}>ชื่อผู้ใช้</Text>
-            <View style={styles.inputMock} />
+            <View
+              style={[
+                styles.inputMock,
+                { justifyContent: "center", paddingHorizontal: 10 },
+              ]}
+            >
+              <Text style={{ color: "#0F172A" }}>{me?.username || "-"}</Text>
+            </View>
+
             <Text style={[styles.label, { marginTop: 12 }]}>รหัสผู้ใช้</Text>
-            <View style={styles.inputMock} />
+            <View
+              style={[
+                styles.inputMock,
+                { justifyContent: "center", paddingHorizontal: 10 },
+              ]}
+            >
+              <Text style={{ color: "#0F172A" }}>{"•".repeat(10)}</Text>
+            </View>
           </SectionCard>
 
           {/* Usage */}
@@ -88,14 +211,16 @@ export default function ProfileScreen() {
             </View>
 
             <View style={{ marginTop: 8 }}>
-              <ProgressBar value={quotaUsed} max={quotaMax} />
+              <ProgressBar value={quotaUsed} max={quotaMax || 1} />
             </View>
 
             <View style={{ marginTop: 10 }}>
               <Text style={{ color: "#475569" }}>
-                แพ็กเกจ : <Text style={{ fontWeight: "700" }}>free trail</Text>
+                แพ็กเกจ : <Text style={{ fontWeight: "700" }}>{packageName}</Text>
               </Text>
-              <Text style={{ color: "#475569" }}>วันหมดอายุ : {expireText}</Text>
+              <Text style={{ color: "#475569" }}>
+                วันหมดอายุ : {expireText}
+              </Text>
             </View>
 
             <View style={{ marginTop: 12 }}>
@@ -114,13 +239,19 @@ export default function ProfileScreen() {
 
             <View style={{ marginTop: 10, gap: 4 }}>
               <Text style={styles.infoLabel}>ชื่อร้านค้า</Text>
-              <Text style={styles.infoValue}>มิเนียนสโตร์</Text>
+              <Text style={styles.infoValue}>{me?.store_name || "-"}</Text>
 
-              <Text style={[styles.infoLabel, { marginTop: 6 }]}>เบอร์โทรศัพท์</Text>
-              <Text style={styles.infoValue}>0611567906</Text>
+              <Text style={[styles.infoLabel, { marginTop: 6 }]}>
+                เบอร์โทรศัพท์
+              </Text>
+              <Text style={styles.infoValue}>
+                {me?.store_phone || me?.phone || "-"}
+              </Text>
 
               <Text style={[styles.infoLabel, { marginTop: 6 }]}>อีเมล</Text>
-              <Text style={styles.infoValue}>admin11111@example.com</Text>
+              <Text style={styles.infoValue}>
+                {me?.store_email || me?.email || "-"}
+              </Text>
             </View>
           </SectionCard>
 
@@ -128,9 +259,8 @@ export default function ProfileScreen() {
           <SectionCard>
             <Text style={styles.sectionTitle}>API Key</Text>
             <Text style={styles.apiText}>
-              234f1452399ec116190879829b9bf3627cd93035b0849e7bc9
+              {me?.token || me?.access_token || "-"}
             </Text>
-
             <TouchableOpacity style={styles.copyBtn} onPress={handleCopy}>
               <Text style={{ color: "#fff", fontWeight: "700" }}>คัดลอก</Text>
             </TouchableOpacity>
@@ -146,7 +276,41 @@ export default function ProfileScreen() {
   );
 }
 
+/** ───────────── helper ───────────── */
+function formatThaiDate(iso?: string) {
+  try {
+    if (!iso) return "-";
+    const d = new Date(iso);
+    return d.toLocaleDateString("th-TH", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return "-";
+  }
+}
+
+function addDaysISO(iso: string, days: number): string {
+  try {
+    const base = new Date(iso);
+    if (Number.isNaN(base.getTime())) return iso;
+    const out = new Date(base);
+    out.setDate(out.getDate() + (days || 0));
+    return out.toISOString();
+  } catch {
+    return iso;
+  }
+}
+
+/** ───────────── styles ───────────── */
 const styles = StyleSheet.create({
+  loadingWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F6F8FB",
+  },
   panel: {
     marginTop: -16,
     backgroundColor: "#fff",
@@ -164,11 +328,20 @@ const styles = StyleSheet.create({
   },
   h1: { fontSize: 20, fontWeight: "800", marginBottom: 10, marginTop: 20 },
   avatarWrap: { alignItems: "center", marginBottom: 16 },
-  avatar: {
+  avatarImage: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    borderWidth: 2,
+    borderColor: "#E2E8F0",
+  },
+  avatarPlaceholder: {
     width: 90,
     height: 90,
     borderRadius: 45,
     backgroundColor: "#E2E8F0",
+    alignItems: "center",
+    justifyContent: "center",
   },
   label: { fontWeight: "700", color: "#1E293B", fontSize: 14 },
   inputMock: {
@@ -179,7 +352,11 @@ const styles = StyleSheet.create({
     borderColor: "#E2E8F0",
   },
   sectionTitle: { fontWeight: "800", fontSize: 16, color: "#0F172A" },
-  rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  rowBetween: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   row: { flexDirection: "row", alignItems: "center", marginTop: 6, gap: 6 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#0A57FF" },
   packageLabel: { color: "#0A57FF", fontWeight: "700" },
