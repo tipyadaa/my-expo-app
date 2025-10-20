@@ -13,7 +13,7 @@ import {
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as Clipboard from "expo-clipboard";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import GradientHeader from "../../Modal/components/ui/GradientHeader";
 import SectionCard from "../../Modal/components/ui/SectionCard";
@@ -27,11 +27,22 @@ import CardProfile from "../../Modal/components/ui/CardProfile";
 
 // ✅ ใช้ service จริง
 import { updateMyStoreInfo } from "../../lib/service/profileService";
+import { getFirstRoom } from "../../lib/service/roomService";
 
 export default function ProfileScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { data: me, isLoading, isError, refetch } = useMyProfile();
+  const { data: firstRoom } = useQuery({
+    enabled: !!me?.uid,
+    queryKey: ["rooms", "first", me?.uid],
+    queryFn: getFirstRoom,
+  });
+
+  const qrToken = firstRoom?.qr_token ?? "";
+  const fallbackToken = me?.token || me?.access_token || "";
+  const tokenToCopy = qrToken || fallbackToken;
+  const tokenForDisplay = tokenToCopy || "-";
 
   // ---------- ชื่อผู้ใช้ ----------
   const displayName =
@@ -106,9 +117,9 @@ export default function ProfileScreen() {
   };
 
   const handleCopy = async () => {
-    const apiKey = me?.token || me?.access_token || "";
-    if (!apiKey) return Alert.alert("ไม่พบ API Key");
-    await Clipboard.setStringAsync(apiKey);
+    const apiKey = tokenToCopy;
+    if (!tokenToCopy) return Alert.alert("ไม่พบ API Key");
+    await Clipboard.setStringAsync(tokenToCopy);
     Alert.alert("คัดลอกสำเร็จ", "API Key ถูกคัดลอกแล้ว");
   };
 
@@ -226,7 +237,7 @@ export default function ProfileScreen() {
           {/* API Key */}
           <SectionCard>
             <Text style={styles.sectionTitle}>API Key</Text>
-            <Text style={styles.apiText}>{me?.token || me?.access_token || "-"}</Text>
+            <Text style={styles.apiText}>{tokenForDisplay}</Text>
             <TouchableOpacity style={styles.copyBtn} onPress={handleCopy}>
               <Text style={{ color: "#fff", fontWeight: "700" }}>คัดลอก</Text>
             </TouchableOpacity>
