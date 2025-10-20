@@ -22,26 +22,21 @@ import {
   useStores,
   type StoreBranch,
 } from "../../../lib/service/storeService";
-import { useLocalAuthQuery } from "../../../lib/authService"; // ✅ ใช้ชื่อผู้ใช้จริง
+import { useLocalAuthQuery } from "../../../lib/authService";
 
 export default function StoresScreen() {
   const router = useRouter();
-
-  // โหลดรายการสาขาจาก backend
   const { data: items, isLoading, isError, refetch, isFetching } = useStores();
-
-  // ข้อมูลผู้ใช้ (สำหรับ hi, …)
   const { data: auth } = useLocalAuthQuery();
+
   const displayName =
     auth?.user?.name_th ||
     auth?.user?.username ||
     auth?.user?.email ||
     "ผู้ใช้งาน";
 
-  // ลบสาขา
   const delMut = useDeleteStore();
 
-  // pull-to-refresh
   const [refreshing, setRefreshing] = React.useState(false);
   const onRefresh = React.useCallback(async () => {
     try {
@@ -52,7 +47,6 @@ export default function StoresScreen() {
     }
   }, [refetch]);
 
-  // ลบสาขา (เรียก backend)
   const confirmDelete = (id: string) => {
     Alert.alert("ยืนยันการลบ", "ต้องการลบสาขานี้หรือไม่?", [
       { text: "ยกเลิก", style: "cancel" },
@@ -69,25 +63,23 @@ export default function StoresScreen() {
     ]);
   };
 
-  // คัดลอกโค้ด
   const copyCode = async (code: string) => {
     await Clipboard.setStringAsync(code);
     Alert.alert("คัดลอก Code สำเร็จ", code);
   };
 
-  // สร้างไลน์กรุ๊ป (เดโม่)
   const createLineGroup = (branch: { name: string }) => {
     Alert.alert("สร้าง LINE Group", `สาขา: ${branch.name}\n(เดโม่)`);
   };
 
   const renderItem = ({ item }: { item: StoreBranch }) => {
     const deleting = delMut.isPending;
+    const isConnected = item.status === "เชื่อมต่อเรียบร้อย";
 
     return (
       <View style={{ paddingHorizontal: 12, paddingTop: 4 }}>
         <SectionCard>
           <View style={{ flexDirection: "row", alignItems: "center" }}>
-            {/* โซนซ้าย = กดแล้วไป detail เฉพาะโซนนี้ */}
             <Pressable
               style={{ flex: 1, flexDirection: "row", alignItems: "center", paddingRight: 8 }}
               onPress={() =>
@@ -98,8 +90,11 @@ export default function StoresScreen() {
               }
               disabled={deleting}
             >
-              {/* avatar */}
-              <View style={styles.avatar} />
+              {/* storefront icon */}
+              <View style={styles.storeIconBox}>
+                <MaterialCommunityIcons name="storefront-outline" size={22} color="#10B981" />
+              </View>
+
               {/* ชื่อ + สถานะ */}
               <View style={{ flex: 1 }}>
                 <Text style={styles.branchName}>{item.name}</Text>
@@ -107,15 +102,13 @@ export default function StoresScreen() {
                 <View
                   style={[
                     styles.pill,
-                    item.status === "เชื่อมต่อเรียบร้อย" ? styles.pillGreen : styles.pillGray,
+                    isConnected ? styles.pillGreen : styles.pillRed,
                   ]}
                 >
                   <Text
                     style={[
                       styles.pillText,
-                      item.status === "เชื่อมต่อเรียบร้อย"
-                        ? { color: "#047857" }
-                        : { color: "#6B7280" },
+                      isConnected ? { color: "#065F46" } : { color: "#B91C1C" },
                     ]}
                   >
                     {item.status}
@@ -124,7 +117,7 @@ export default function StoresScreen() {
               </View>
             </Pressable>
 
-            {/* โซนปุ่มขวา = กดแล้วไม่ไป detail */}
+            {/* ปุ่มแก้ไข/ลบ */}
             <View style={{ flexDirection: "row", gap: 10 }}>
               <TouchableOpacity
                 style={[styles.iconBtn, deleting && { opacity: 0.6 }]}
@@ -135,7 +128,6 @@ export default function StoresScreen() {
                     params: { id: item.id },
                   })
                 }
-                accessibilityLabel="แก้ไขสาขา"
               >
                 <Ionicons name="pencil" size={16} color="#2563EB" />
               </TouchableOpacity>
@@ -144,7 +136,6 @@ export default function StoresScreen() {
                 style={[styles.iconBtn, deleting && { opacity: 0.6 }]}
                 disabled={deleting}
                 onPress={() => confirmDelete(item.id)}
-                accessibilityLabel="ลบสาขา"
               >
                 {deleting ? (
                   <ActivityIndicator size="small" />
@@ -158,12 +149,13 @@ export default function StoresScreen() {
           {/* ปุ่มล่าง */}
           <View style={{ height: 10 }} />
           <View style={{ flexDirection: "row", gap: 12 }}>
+            {/* 🔵 ปุ่มคัดลอก code (สีน้ำเงิน #014BFF) */}
             <TouchableOpacity
-              style={styles.ghostBtn}
+              style={[styles.copyBtnBlue]}
               onPress={() => copyCode(item.code)}
               disabled={deleting}
             >
-              <Text style={styles.ghostBtnText}>คัดลอก code</Text>
+              <Text style={styles.copyBtnBlueText}>คัดลอก code</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -202,7 +194,6 @@ export default function StoresScreen() {
             }
           />
 
-          {/* หัวข้อ + ปุ่ม + */}
           <View style={styles.panel}>
             <View style={{ flexDirection: "row", alignItems: "center", paddingBottom: 14 }}>
               <View style={{ flex: 1 }}>
@@ -211,13 +202,13 @@ export default function StoresScreen() {
               </View>
 
               <Link href="/(tabs)/stores/addStore" asChild>
-                <TouchableOpacity style={styles.fabSmall} accessibilityLabel="เพิ่มสาขา">
+                <TouchableOpacity style={styles.fabSmall}>
                   <Ionicons name="add" size={22} color="#fff" />
                 </TouchableOpacity>
               </Link>
             </View>
 
-            {/* Loading / Error helpers */}
+            {/* Loading / Error */}
             {isLoading && (
               <View style={{ paddingVertical: 12, alignItems: "center" }}>
                 <ActivityIndicator />
@@ -269,13 +260,19 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  avatar: {
+  // storefront icon
+  storeIconBox: {
     width: 44,
     height: 44,
-    borderRadius: 22,
-    backgroundColor: "#22D3EE",
     marginRight: 12,
+    borderRadius: 12,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    alignItems: "center",
+    justifyContent: "center",
   },
+
   branchName: { fontWeight: "800", fontSize: 14 },
 
   pill: {
@@ -286,8 +283,11 @@ const styles = StyleSheet.create({
     marginTop: 6,
     borderWidth: 1,
   },
+  // ✅ สีสำหรับสถานะเชื่อมต่อแล้ว
   pillGreen: { backgroundColor: "#ECFDF5", borderColor: "#A7F3D0" },
-  pillGray: { backgroundColor: "#F3F4F6", borderColor: "#E5E7EB" },
+  // ✅ สีสำหรับยังไม่ได้เชื่อมต่อ
+  pillRed: { backgroundColor: "#FEE2E2", borderColor: "#FCA5A5" },
+
   pillText: { fontSize: 11, fontWeight: "700" },
 
   iconBtn: {
@@ -297,6 +297,20 @@ const styles = StyleSheet.create({
     backgroundColor: "#F1F5F9",
     alignItems: "center",
     justifyContent: "center",
+  },
+
+  // 🔵 ปุ่มคัดลอก code
+  copyBtnBlue: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: "#014BFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  copyBtnBlueText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
   },
 
   ghostBtn: {

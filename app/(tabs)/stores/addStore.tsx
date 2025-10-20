@@ -13,36 +13,33 @@ import {
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Link, useRouter } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
 
 import GradientHeader from "../../../Modal/components/ui/GradientHeader";
 import SectionCard from "../../../Modal/components/ui/SectionCard";
 import PrimaryButton from "../../../Modal/components/ui/PrimaryButton";
 
-import {
-  useCreateStore,
-  type StoreBranch,
-} from "../../../lib/service/storeService";
 import { useLocalAuthQuery } from "../../../lib/authService";
-
-// ⬇️ ดึงบัญชีธนาคารจริงของผู้ใช้ปัจจุบัน
 import { useBanksMine } from "../../../lib/hooks/useBank";
 import type { BankItem } from "../../../lib/hooks/useBank";
-
-type LinkedAccount = { id: number; bank: string; number: string; enabled: boolean };
+import { API_BASE } from "../../../lib/http";
 
 export default function AddStore() {
   const router = useRouter();
+  const qc = useQueryClient();
 
   // ทักทายผู้ใช้
   const { data: auth } = useLocalAuthQuery();
   const displayName =
     auth?.user?.name_th || auth?.user?.username || auth?.user?.email || "ผู้ใช้งาน";
 
-  // hook สร้างสาขา
-  const { mutate: createMutate, isPending: isCreating } = useCreateStore();
-
   // ── form state ────────────────────────────────────────────────
   const [branchName, setBranchName] = React.useState("");
+  const [showRules, setShowRules] = React.useState(true);
+  const [minAmount, setMinAmount] = React.useState<number>(80);
+  const [hideSenderAcc, setHideSenderAcc] = React.useState(false);
+  const [hideReceiverAcc, setHideReceiverAcc] = React.useState(false);
+  const [isCreating, setIsCreating] = React.useState(false);
 
   // ดึงบัญชีธนาคารจริงจาก backend
   const {
@@ -52,23 +49,17 @@ export default function AddStore() {
     refetch: refetchBanks,
   } = useBanksMine();
 
-  // เก็บรายการบัญชีในรูปแบบที่ UI ใช้กับสวิตช์
+  type LinkedAccount = { id: number; bank: string; number: string; enabled: boolean };
   const [linked, setLinked] = React.useState<LinkedAccount[]>([]);
   React.useEffect(() => {
     const mapped: LinkedAccount[] = (bankList as BankItem[]).map((b) => ({
       id: Number(b.id),
       bank: b.name_th || b.name_en || b.bank_code || "ธนาคาร",
-      number: b.account_no,
-      // ถ้ามี is_active (0/1) ใช้เป็นค่าเริ่มต้นได้เลย
-      enabled: !!b.is_active, // เปลี่ยนตาม business rule ได้
+      number: String(b.account_no || ''),
+      enabled: !!b.is_active,
     }));
     setLinked(mapped);
   }, [bankList]);
-
-  const [showRules, setShowRules] = React.useState(true);
-  const [minAmount, setMinAmount] = React.useState<number>(80);
-  const [hideSenderAcc, setHideSenderAcc] = React.useState(false);
-  const [hideReceiverAcc, setHideReceiverAcc] = React.useState(false);
 
   const toggleLinked = (id: number) =>
     setLinked((prev) => prev.map((x) => (x.id === id ? { ...x, enabled: !x.enabled } : x)));
@@ -76,44 +67,81 @@ export default function AddStore() {
   const plus = () => setMinAmount((v) => Math.min(999999, v + 1));
   const minus = () => setMinAmount((v) => Math.max(0, v - 1));
 
-  const onSubmit = () => {
+  const onSubmit = async () => {
     if (!branchName.trim()) {
       Alert.alert("กรอกข้อมูลไม่ครบ", "โปรดระบุชื่อสาขาร้านค้า");
       return;
     }
 
+    const userId = Number(auth?.user?.id ?? 0);
+    if (!userId) {
+      Alert.alert("ไม่พบผู้ใช้", "กรุณาเข้าสู่ระบบอีกครั้ง");
+      return;
+    }
+
     const selectedIds = linked.filter((x) => x.enabled).map((x) => x.id);
 
-    // payload สำหรับ backend (เพิ่ม bank_ids ส่งไปเชื่อมสาขากับบัญชี)
-    const payload: Omit<StoreBranch, "id"> & { bank_ids?: number[] } = {
-      name: branchName.trim(),
-      status: "ยังไม่ได้เชื่อมต่อ",
-      code: "",
-      minAmount,
-      hideSenderAcc,
-      hideReceiverAcc,
-      bank_ids: selectedIds, // 👈 เปลี่ยนชื่อฟิลด์ให้ตรงกับฝั่ง server ถ้าจำเป็น
-    };
+    setIsCreating(true);
+    try {
+      // 1) Create room (UI เดิม แต่ใช้ fetch ตามสเปกใหม่)
+      const createUrl = `${API_BASE}/room2/create`;
+      const headers = {
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'true',
+        apikey: String((auth as any)?.token ?? ''),
+      } as const;
+      const createBody = {
+        user_id: userId,
+        line_group_id: "",
+        room_name: branchName.trim(),
+        qr_token: "",
+        quota_used: 0,
+        min_receive: Number(minAmount || 0),
+        show_transferor: !hideSenderAcc,
+        show_recipient: !hideReceiverAcc,
+        list_bank: "",
+      };
+      const res = await fetch(createUrl, { method: 'POST', headers, body: JSON.stringify(createBody) });
+      const data = await safeParse<any>(res);
 
-    createMutate(payload, {
-      onSuccess: () => {
-        const showList =
-          selectedIds.length === 0
-            ? "-"
-            : linked
-                .filter((x) => selectedIds.includes(x.id))
-                .map((x) => x.number)
-                .join(", ");
-        Alert.alert(
-          "สร้างสาขาสำเร็จ",
-          `ชื่อสาขา: ${branchName}\nบัญชีที่เชื่อมต่อ: ${showList}\nเตือนขั้นต่ำ: ${minAmount}`,
-          [{ text: "ตกลง", onPress: () => router.back() }]
-        );
-      },
-      onError: (e: any) => {
-        Alert.alert("สร้างสาขาไม่สำเร็จ", e?.message ?? "Internal Processing Error");
-      },
-    });
+      // 2) Update list_bank หลังสร้าง (เพื่อกัน list_bank เป็น null)
+      const createdId = Number((data?.data?.id ?? data?.id ?? -1) as any);
+      if (data?.message === 'Success' && createdId > 0) {
+        const updateUrl = `${API_BASE}/room2/update`;
+        const updateBody = {
+          id: createdId,
+          user_id: userId,
+          room_name: branchName.trim(),
+          min_amount_receive: Number(minAmount || 0),
+          hide_sender_detail: hideSenderAcc,
+          hide_receiver_detail: hideReceiverAcc,
+          list_bank: JSON.stringify(selectedIds),
+        };
+        try {
+          await fetch(updateUrl, { method: 'PUT', headers, body: JSON.stringify(updateBody) });
+        } catch {}
+      }
+
+      // refresh list + success
+      qc.invalidateQueries({ queryKey: ["stores"] });
+
+      const showList =
+        selectedIds.length === 0
+          ? "-"
+          : linked
+              .filter((x) => selectedIds.includes(x.id))
+              .map((x) => x.number)
+              .join(", ");
+      Alert.alert(
+        "สร้างสาขาสำเร็จ",
+        `ชื่อสาขา: ${branchName}\nบัญชีที่เชื่อมต่อ: ${showList}\nเตือนขั้นต่ำ: ${minAmount}`,
+        [{ text: "ตกลง", onPress: () => router.back() }]
+      );
+    } catch (e: any) {
+      Alert.alert("สร้างสาขาไม่สำเร็จ", e?.message ?? "Internal Processing Error");
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   return (
@@ -124,30 +152,26 @@ export default function AddStore() {
           <Link href="/(tabs)/profile" asChild>
             <TouchableOpacity style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
               <MaterialCommunityIcons name="storefront-outline" size={18} color="#EAF4FF" />
-              <Text style={{ color: "#EAF4FF" }}>Hi, {displayName}</Text>
+              <Text style={{ color: "#EAF4FF" }}>{displayName}</Text>
             </TouchableOpacity>
           </Link>
         }
       />
 
-      {/* Panel */}
       <View style={styles.panel}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
+        <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
           <Ionicons name="close" size={22} color="#111827" />
         </TouchableOpacity>
 
-        <Text style={styles.h1}>สร้างสาขาร้านค้า</Text>
-        <View style={styles.iconWrap}>
-          <MaterialCommunityIcons name="storefront-outline" size={36} color="#10B981" />
-        </View>
+        <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+          <Text style={styles.h1}>สร้างสาขา</Text>
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
           <SectionCard>
-            {/* ชื่อสาขา */}
-            <Text style={styles.groupTitle}>ชื่อสาขาร้านค้า</Text>
+            <Text style={styles.groupTitle}>ชื่อสาขา</Text>
+            <Text style={styles.helper}>ตั้งชื่อเพื่อใช้งานภายในระบบ</Text>
             <TextInput
               style={styles.input}
-              placeholder="ชื่อสาขา"
+              placeholder="เช่น สาขาแรก หรือ สาขาหลัก"
               value={branchName}
               onChangeText={setBranchName}
             />
@@ -257,6 +281,16 @@ export default function AddStore() {
   );
 }
 
+async function safeParse<T>(res: Response): Promise<T | null> {
+  try {
+    const text = await res.text();
+    if (!text) return null as any;
+    return JSON.parse(text) as T;
+  } catch {
+    return null as any;
+  }
+}
+
 const styles = StyleSheet.create({
   panel: {
     flex: 1,
@@ -279,20 +313,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   h1: { fontSize: 22, fontWeight: "800", paddingRight: 40 },
-  iconWrap: {
-    alignSelf: "center",
-    marginVertical: 10,
-    height: 64,
-    width: 64,
-    borderRadius: 12,
-    backgroundColor: "#D1FAE5",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
   groupTitle: { fontWeight: "700", marginBottom: 6 },
   helper: { color: "#64748B", marginBottom: 6 },
-
   input: {
     backgroundColor: "#fff",
     borderWidth: 1,
@@ -301,21 +323,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 12,
   },
-
   accordionHead: {
     marginTop: 10,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-
   rowBetween: {
     paddingVertical: 10,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-
   stepper: {
     height: 44,
     borderWidth: 1,

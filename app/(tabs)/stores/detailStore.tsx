@@ -9,16 +9,16 @@ import {
   Alert,
   ActivityIndicator,
   RefreshControl,
+  Image,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
+import { LinearGradient } from "expo-linear-gradient";
 import { Link, useLocalSearchParams, useRouter } from "expo-router";
-import GradientHeader from "../../../Modal/components/ui/GradientHeader";
 
+import GradientHeader from "../../../Modal/components/ui/GradientHeader";
 import { useStores } from "../../../lib/service/storeService";
 import { useLocalAuthQuery } from "../../../lib/authService";
-
-// ⬇️ เพิ่ม: ดึงบัญชีธนาคารของผู้ใช้
 import { useBanksMine } from "../../../lib/hooks/useBank";
 
 export default function DetailStore() {
@@ -30,14 +30,14 @@ export default function DetailStore() {
   const displayName =
     auth?.user?.name_th || auth?.user?.username || auth?.user?.email || "ผู้ใช้งาน";
 
-  // โหลดรายการสาขาทั้งหมดแล้วหา item ที่ id ตรงกับพาธ
+  // โหลดรายการสาขา แล้วหา item ตรงกับพาธ
   const { data, isLoading, isError, refetch, isFetching } = useStores();
   const item = React.useMemo(
     () => (data ?? []).find((x) => x.id === String(id)),
     [data, id]
   );
 
-  // โหลดบัญชีธนาคารของผู้ใช้ปัจจุบัน
+  // โหลดบัญชีธนาคารของผู้ใช้
   const {
     data: myBanks = [],
     isLoading: isLoadingBanks,
@@ -48,26 +48,100 @@ export default function DetailStore() {
   const storeName = item?.name ?? "-";
   const statusText = item?.status ?? "ยังไม่ได้เชื่อมต่อ";
   const code = item?.code ?? "-";
-  const storeNo = `#${String(item?.id ?? "").padStart(5, "0")}`;
+  const storeNo = `#${String(item?.id ?? "").padStart(6, "0")}`;
 
-  // --- จับคู่ bank_ids ของสาขากับรายการบัญชีของผู้ใช้ ---
-  // รองรับทั้ง number[] และ string[] จาก backend
+  // ดึง bank_ids และแม็ปกับ myBanks
   const linkedBankIds: number[] = React.useMemo(() => {
     const raw =
-      (item as any)?.bank_ids ??
-      (item as any)?.bankIds ??
-      (item as any)?.banks ??
-      [];
+      (item as any)?.bank_ids ?? (item as any)?.bankIds ?? (item as any)?.banks ?? [];
     if (!Array.isArray(raw)) return [];
-    return raw
-      .map((v) => Number(v))
-      .filter((v) => Number.isFinite(v) && v > 0);
+    return raw.map((v) => Number(v)).filter((v) => Number.isFinite(v) && v > 0);
   }, [item]);
 
   const linkedBanks = React.useMemo(() => {
     if (!linkedBankIds.length) return [];
     return myBanks.filter((b: any) => linkedBankIds.includes(Number(b.id)));
   }, [myBanks, linkedBankIds]);
+
+  // ——— Bank/PromptPay logo helpers (explicit mapping from provided lists) ———
+  const LIST_BANK = React.useMemo(
+    () => [
+      { value: '002', label: 'ธนาคารกรุงเทพ', imageUrl: 'https://moneyexpo.net/wp-content/uploads/2023/05/BBL.jpg' },
+      { value: '004', label: 'ธนาคารกสิกรไทย', imageUrl: 'https://i.pinimg.com/736x/cb/7c/ca/cb7cca77e49eece5ce042aa9f25ad27c.jpg' },
+      { value: '006', label: 'ธนาคารกรุงไทย', imageUrl: 'https://moneyexpo.net/wp-content/uploads/2023/05/KTB.jpg' },
+      { value: '009', label: 'ธนาคารโอเวอร์ซี', imageUrl: 'https://www.dpa.or.th/storage/uploads/bank/dpa_bank_ocbc@2x.png' },
+      { value: '011', label: 'ธนาคารทหารไทยธนชาต', imageUrl: 'https://media.ttbbank.com/1/global/ttb.jpg' },
+      { value: '014', label: 'ธนาคารไทยพาณิชย์', imageUrl: 'https://www.dpa.or.th/storage/uploads/bank/dpa_bank_sb@2x.png' },
+      { value: '017', label: 'ธนาคารซิตี้แบงก์', imageUrl: 'https://moneyandbanking.co.th/wp-content/uploads/2024/04/Citi-Bank-905x613.webp' },
+      { value: '018', label: 'ธนาคารซูมิโตโม มิตซุย', imageUrl: 'https://www.dpa.or.th/storage/uploads/bank/dpa_bank_smbc@2x.png' },
+      { value: '020', label: 'ธนาคารสแตนดาร์ดชาร์เตอร์ด', imageUrl: 'https://www.dpa.or.th/storage/uploads/bank/dpa_bank_scthai@2x.png' },
+      { value: '022', label: 'ธนาคารซีไอเอ็มบี ไทย', imageUrl: 'https://www.dpa.or.th/storage/uploads/bank/dpa_bank_cimbthai@2x.png' },
+      { value: '024', label: 'ธนาคารยูโอบี', imageUrl: 'https://cms-tpq.theparq.com/wp-content/uploads/2020/07/UOB_LOGO_800x800.png' },
+      { value: '025', label: 'ธนาคารกรุงศรี', imageUrl: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQhQjvxKz4c3kDRgXc3YS1gVDAv1rlVu6NIEA&s' },
+      { value: '030', label: 'ธนาคารออมสิน', imageUrl: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSKB3R_1uIDD6IOdNF0ASnynXcUrrdxs3OUVw&s' },
+      { value: '031', label: 'ธนาคารฮ่องกงและเซี่ยงไฮ้แบงกิ้ง', imageUrl: 'https://www.dpa.or.th/storage/uploads/bank/dpa_bank_hsbc@2x.png' },
+      { value: '032', label: 'ธนาคารดอยซ์แบงก์', imageUrl: 'https://www.dpa.or.th/storage/uploads/bank/dpa_bank_deutsche@2x.png' },
+      { value: '033', label: 'ธนาคารอาคารสงเคราะห์', imageUrl: 'https://ghbloyalty.ghbank.co.th/logo_ghb.png' },
+      { value: '034', label: 'ธนาคารเพื่อการเกษตรและสหกรณ์การเกษตร', imageUrl: 'https://s.isanook.com/mn/0/ud/175/877323/fack.jpg' },
+      { value: '039', label: 'ธนาคารมิซูโฮ', imageUrl: 'https://www.dpa.or.th/storage/uploads/bank/dpa_bank_mizuho@2x.png' },
+      { value: '045', label: 'ธนาคารบีเอ็นพี พารีบาส์', imageUrl: 'https://www.dpa.or.th/storage/uploads/bank/dpa_bank_bnpparibas@2x.png' },
+      { value: '052', label: 'ธนาคารประเทศจีน', imageUrl: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSMrfV_dWH9d6FO7JrEw11bWRbiIx0izN_I5g&s' },
+      { value: '066', label: 'ธนาคารอิสลาม', imageUrl: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRIzQBxnxe1oqnWPkll8vmLqnxJcaRanB23ow&s' },
+      { value: '067', label: 'ธนาคารทิสโก้', imageUrl: 'https://www.dpa.or.th/storage/uploads/bank/dpa_bank_tisco@2x.png' },
+      { value: '069', label: 'ธนาคารเกียรตินาคิน', imageUrl: 'https://www.dpa.or.th/storage/uploads/bank/dpa_bank_kkp@2x.png' },
+      { value: '070', label: 'ธนาคารไอซีบีซี ไทย', imageUrl: 'https://www.dpa.or.th/storage/uploads/bank/dpa_bank_icbc@2x.png' },
+      { value: '071', label: 'ธนาคารไทยเครดิต', imageUrl: 'https://www.dpa.or.th/storage/uploads/bank/dpa_bank_thaicredit@2x.png' },
+      { value: '073', label: 'ธนาคารแลนด์ แอนด์ เฮ้าส์', imageUrl: 'https://www.dpa.or.th/storage/uploads/bank/dpa_bank_lhbank@2x.png' },
+      { value: '098', label: 'ธนาคารพัฒนาวิสาหกิจขนาดกลางและขนาดย่อม', imageUrl: 'https://csrgroup.co.th/img/Client258-6.png' },
+    ],
+    []
+  );
+
+  const LIST_PROMPTPAY = React.useMemo(
+    () => [
+      { label: 'เบอร์โทร', value: 'MSISDN', imageUrl: 'https://play-lh.googleusercontent.com/dVr2IZFMqilCP3pixPfH1djP_BPhwfjkQyNAjhhzhsFtKfXXh3BomzR3aGg2QMvhya4=w240-h480-rw' },
+      { label: 'เลขประจำตัว', value: 'NATID', imageUrl: 'https://play-lh.googleusercontent.com/dVr2IZFMqilCP3pixPfH1djP_BPhwfjkQyNAjhhzhsFtKfXXh3BomzR3aGg2QMvhya4=w240-h480-rw' },
+      { label: 'e-Wallet ID', value: 'EWALLETID', imageUrl: 'https://play-lh.googleusercontent.com/dVr2IZFMqilCP3pixPfH1djP_BPhwfjkQyNAjhhzhsFtKfXXh3BomzR3aGg2QMvhya4=w240-h480-rw' },
+    ],
+    []
+  );
+
+  const BANK_IMG_BY_CODE: Record<string, string> = React.useMemo(() => {
+    const map: Record<string, string> = {};
+    LIST_BANK.forEach((b) => (map[String(b.value).toUpperCase()] = b.imageUrl));
+    return map;
+  }, [LIST_BANK]);
+  const PP_IMG_BY_TYPE: Record<string, string> = React.useMemo(() => {
+    const map: Record<string, string> = {};
+    LIST_PROMPTPAY.forEach((p) => (map[String(p.value).toUpperCase()] = p.imageUrl));
+    return map;
+  }, [LIST_PROMPTPAY]);
+
+  const getBankLogoUri = (bank: any): string | null => {
+    const type = String(bank?.account_type || '').toUpperCase();
+    const code = String(bank?.bank_code || '').toUpperCase().trim();
+    if (type === 'PROMPTPAY' || code === 'PROMPTPAY') {
+      const ppType = String(bank?.prompt_pay_type || '').toUpperCase();
+      return PP_IMG_BY_TYPE[ppType] || PP_IMG_BY_TYPE['MSISDN'] || null;
+    }
+    if (!code) return null;
+    return BANK_IMG_BY_CODE[code] || null;
+  };
+
+  function BankLogo({ bank }: { bank: any }) {
+    const [err, setErr] = React.useState(false);
+    const uri = getBankLogoUri(bank);
+    if (!uri || err) {
+      return <View style={styles.bankIconBox} />;
+    }
+    return (
+      <Image
+        source={{ uri }}
+        style={styles.bankLogo}
+        onError={() => setErr(true)}
+      />
+    );
+  }
 
   const copyCode = async () => {
     if (!code || code === "-") {
@@ -97,13 +171,7 @@ export default function DetailStore() {
         <Text style={{ color: "#DC2626", fontWeight: "700" }}>โหลดข้อมูลไม่สำเร็จ</Text>
         <TouchableOpacity
           onPress={() => refetch()}
-          style={{
-            marginTop: 10,
-            paddingHorizontal: 16,
-            paddingVertical: 10,
-            backgroundColor: "#E2E8F0",
-            borderRadius: 8,
-          }}
+          style={styles.retryBtn}
         >
           <Text>ลองอีกครั้ง</Text>
         </TouchableOpacity>
@@ -115,16 +183,7 @@ export default function DetailStore() {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 16 }}>
         <Text style={{ color: "#64748B" }}>ไม่พบสาขานี้</Text>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={{
-            marginTop: 10,
-            paddingHorizontal: 16,
-            paddingVertical: 10,
-            backgroundColor: "#E2E8F0",
-            borderRadius: 8,
-          }}
-        >
+        <TouchableOpacity onPress={() => router.back()} style={styles.retryBtn}>
           <Text>กลับ</Text>
         </TouchableOpacity>
       </View>
@@ -149,9 +208,7 @@ export default function DetailStore() {
       <ScrollView
         style={styles.panel}
         contentContainerStyle={{ paddingBottom: 40 }}
-        refreshControl={
-          <RefreshControl refreshing={isFetching} onRefresh={() => refetch()} />
-        }
+        refreshControl={<RefreshControl refreshing={isFetching} onRefresh={() => refetch()} />}
       >
         {/* ปุ่มปิด */}
         <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
@@ -159,7 +216,7 @@ export default function DetailStore() {
         </TouchableOpacity>
 
         {/* การ์ดหัว */}
-        <View style={styles.headerCard}>
+        <View style={[styles.headerCard, styles.shadowSm]}>
           <View style={styles.storeIconWrap}>
             <MaterialCommunityIcons name="storefront-outline" size={32} color="#10B981" />
           </View>
@@ -187,13 +244,13 @@ export default function DetailStore() {
               </Text>
             </View>
 
-            {/* รหัสร้าน */}
+            {/* เลขสาขา */}
             <View style={[styles.badge, styles.badgeGray]}>
               <Text style={[styles.badgeText, { color: "#0F172A" }]}>{storeNo}</Text>
             </View>
           </View>
 
-          {/* แจ้งเตือนชมพู เมื่อยังไม่เชื่อมต่อ */}
+          {/* กล่องแจ้งเตือนชมพู */}
           {statusText !== "เชื่อมต่อเรียบร้อย" && (
             <View style={styles.alertBox}>
               <Text style={styles.alertText}>
@@ -205,27 +262,17 @@ export default function DetailStore() {
         </View>
 
         {/* วิธีเชื่อมต่อ Line */}
-        <View style={styles.card}>
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+        <View style={[styles.card, styles.shadowSm]}>
+          <View style={styles.cardHeaderRow}>
             <Text style={styles.cardTitle}>วิธีเชื่อมต่อ Line</Text>
-            <TouchableOpacity
-              onPress={onEdit}
-              style={{
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-                backgroundColor: "#2563EB",
-                borderRadius: 8,
-              }}
-            >
+            <TouchableOpacity onPress={onEdit} style={styles.editBtn}>
               <Text style={{ color: "#fff", fontWeight: "800" }}>แก้ไขสาขา</Text>
             </TouchableOpacity>
           </View>
 
           <View style={{ gap: 4, marginTop: 6 }}>
             <Text style={styles.stepText}>1. เปิดเมนู Code</Text>
-            <Text style={styles.stepText}>
-              2. กดเข้าร่วม LINE Group, ภายใน LINE OA: SureSure
-            </Text>
+            <Text style={styles.stepText}>2. กดเข้าร่วม LINE Group, ภายใน LINE OA: SureSure</Text>
             <Text style={styles.stepText}>3. วาง Code ด้านล่างใน Group ที่ต้องการเพิ่มด้วย</Text>
             <Text style={styles.stepText}>
               4. หลังเชื่อมต่อสำเร็จ ระบบจะแสดงสถิติรายงานสลิปอัตโนมัติ
@@ -248,16 +295,25 @@ export default function DetailStore() {
             <Text style={styles.codeHint}>* โค้ดจะใช้ได้ภายในระยะเวลาจำกัด</Text>
           </View>
 
+          {/* ปุ่มหลัก ไล่เฉดตามภาพ */}
           <TouchableOpacity
-            style={styles.primaryBtn}
+            activeOpacity={0.9}
             onPress={() => Alert.alert("สร้าง LINE Group", "เดโม่")}
+            style={{ marginTop: 10, borderRadius: 12, overflow: "hidden" }}
           >
-            <Text style={styles.primaryBtnText}>สร้าง LINE Group</Text>
+            <LinearGradient
+              colors={["#0A57FF", "#01C3AF"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.primaryBtn}
+            >
+              <Text style={styles.primaryBtnText}>สร้าง LINE Group</Text>
+            </LinearGradient>
           </TouchableOpacity>
         </View>
 
         {/* บัญชีรับเงินที่เชื่อมต่อ */}
-        <View style={styles.card}>
+        <View style={[styles.card, styles.shadowSm]}>
           <Text style={styles.cardTitle}>บัญชีรับเงินที่เชื่อมต่อ</Text>
           <View style={{ height: 10 }} />
 
@@ -277,28 +333,30 @@ export default function DetailStore() {
             </View>
           )}
 
-          {/* รายการ pill */}
+          {/* รายการเป็น “การ์ดขาว” เหมือนภาพ */}
           {!isLoadingBanks && !isBankError && linkedBanks.length > 0 ? (
-            <View style={styles.pillsWrap}>
+            <View style={{ gap: 10 }}>
               {linkedBanks.map((b: any) => {
                 const bankName = b.name_th || b.name_en || b.bank_code || "ธนาคาร";
-                const last4 = String(b.account_no || "").slice(-4);
-                const label = `${bankName} · ${b.account_no}`;
+                const acc = String(b.account_no || "");
                 return (
-                  <View key={b.id} style={[styles.pill, styles.pillOn]}>
-                    <Ionicons name="card-outline" size={14} color="#065F46" />
-                    <Text style={[styles.pillText, { color: "#065F46" }]} numberOfLines={1}>
-                      {label}
-                    </Text>
+                  <View key={b.id} style={[styles.bankRow, styles.shadowXs]}>
+                    <BankLogo bank={b} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.bankName} numberOfLines={1}>
+                        {bankName}
+                      </Text>
+                      <Text style={styles.bankAcc} numberOfLines={1}>
+                        {acc}
+                      </Text>
+                    </View>
                   </View>
                 );
               })}
             </View>
           ) : (
             !isLoadingBanks &&
-            !isBankError && (
-              <Text style={{ color: "#64748B" }}>ยังไม่มีบัญชีที่เชื่อมต่อสำหรับสาขานี้</Text>
-            )
+            !isBankError && <Text style={{ color: "#64748B" }}>ยังไม่มีบัญชีที่เชื่อมต่อสำหรับสาขานี้</Text>
           )}
         </View>
       </ScrollView>
@@ -377,6 +435,11 @@ const styles = StyleSheet.create({
     padding: 14,
     marginTop: 12,
   },
+  cardHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
   cardTitle: { fontSize: 13, fontWeight: "800", color: "#0F172A" },
   stepText: { color: "#475569", fontSize: 12 },
 
@@ -385,7 +448,7 @@ const styles = StyleSheet.create({
   codeRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   codeField: {
     flex: 1,
-    height: 36,
+    height: 38,
     borderRadius: 8,
     backgroundColor: "#E8F0FE",
     justifyContent: "center",
@@ -393,7 +456,7 @@ const styles = StyleSheet.create({
   },
   codeFieldText: { color: "#0F172A", fontWeight: "700" },
   copyBtn: {
-    height: 36,
+    height: 38,
     paddingHorizontal: 14,
     borderRadius: 8,
     backgroundColor: "#2563EB",
@@ -404,26 +467,67 @@ const styles = StyleSheet.create({
   codeHint: { color: "#94A3B8", fontSize: 11, marginTop: 4 },
 
   primaryBtn: {
-    marginTop: 10,
-    height: 44,
-    borderRadius: 10,
-    backgroundColor: "#0A57FF",
+    height: 46,
     alignItems: "center",
     justifyContent: "center",
   },
-  primaryBtnText: { color: "#fff", fontWeight: "800" },
+  primaryBtnText: { color: "#fff", fontWeight: "800", fontSize: 14 },
 
-  // pills
-  pillsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  pill: {
+  // “การ์ดบัญชี” แบบในภาพ
+  bankRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
+    gap: 12,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
     borderWidth: 1,
+    borderColor: "#E5E7EB",
+    paddingVertical: 12,
+    paddingHorizontal: 12,
   },
-  pillOn: { backgroundColor: "#ECFDF5", borderColor: "#A7F3D0" }, // เขียวอ่อน
-  pillText: { fontSize: 12, fontWeight: "700" },
+  bankIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: "#3B82F6",
+  },
+  bankLogo: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+  },
+  bankName: { fontSize: 13, fontWeight: "800", color: "#0F172A" },
+  bankAcc: { fontSize: 12, color: "#64748B" },
+
+  // ปุ่ม/การ์ดอื่น ๆ
+  editBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: "#2563EB",
+    borderRadius: 8,
+  },
+  retryBtn: {
+    marginTop: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: "#E2E8F0",
+    borderRadius: 8,
+  },
+
+  // เงา
+  shadowSm: {
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
+  },
+  shadowXs: {
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
 });

@@ -14,11 +14,11 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as Clipboard from "expo-clipboard";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { LinearGradient } from "expo-linear-gradient";
 
 import GradientHeader from "../../Modal/components/ui/GradientHeader";
 import SectionCard from "../../Modal/components/ui/SectionCard";
 import ProgressBar from "../../Modal/components/ui/ProgressBar";
-import PrimaryButton from "../../Modal/components/ui/PrimaryButton";
 
 import { useMyProfile } from "../../lib/hooks/useProfile";
 import { clearStoredAuth } from "../../lib/authService";
@@ -48,7 +48,7 @@ export default function ProfileScreen() {
   const displayName =
     me?.name_th || me?.name_en || me?.store_name || me?.username || "User";
 
-  // ---------- โหลดรายการแพ็กเกจ แล้วจับคู่กับ package_id ปัจจุบัน ----------
+  // ---------- โหลดรายการแพ็กเกจ ----------
   const [plans, setPlans] = React.useState<Plan[]>([]);
   const [planMeta, setPlanMeta] = React.useState<{
     name: string;
@@ -78,7 +78,7 @@ export default function ProfileScreen() {
     });
   }, [me, plans]);
 
-  // ---------- วันหมดอายุ (package_change_date + days) ----------
+  // ---------- วันหมดอายุ ----------
   const expireText = React.useMemo(() => {
     if (!me) return "-";
     const startISO = me.package_change_date || me.bill_date || me.created_date || "";
@@ -87,7 +87,7 @@ export default function ProfileScreen() {
     return formatThaiDate(endISO);
   }, [me, planMeta?.days]);
 
-  // ---------- รีเซ็ตการใช้งานเป็น 0 ช่วงแรกหลังเปลี่ยนแพ็กเกจ ----------
+  // ---------- รีเซ็ตการใช้งานช่วงแรก ----------
   const minutesSinceChange = React.useMemo(() => {
     if (!me?.package_change_date) return Infinity;
     const t = new Date(me.package_change_date).getTime();
@@ -117,7 +117,6 @@ export default function ProfileScreen() {
   };
 
   const handleCopy = async () => {
-    const apiKey = tokenToCopy;
     if (!tokenToCopy) return Alert.alert("ไม่พบ API Key");
     await Clipboard.setStringAsync(tokenToCopy);
     Alert.alert("คัดลอกสำเร็จ", "API Key ถูกคัดลอกแล้ว");
@@ -141,6 +140,12 @@ export default function ProfileScreen() {
       </View>
     );
 
+  // แบ่ง token เป็น 1–2 แถวเหมือนภาพ (ถ้ายาว)
+  const tokenChunks =
+    typeof tokenForDisplay === "string" && tokenForDisplay !== "-"
+      ? tokenForDisplay.match(/.{1,28}/g) ?? [tokenForDisplay]
+      : [tokenForDisplay];
+
   return (
     <View style={{ flex: 1, backgroundColor: "#F6F8FB" }}>
       {/* Header */}
@@ -155,13 +160,13 @@ export default function ProfileScreen() {
 
       <View style={styles.panel}>
         <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
-          <Ionicons name="close" size={22} color="#111827" />
+          <Ionicons name="close" size={20} color="#111827" />
         </TouchableOpacity>
 
         <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
           <Text style={styles.h1}>โปรไฟล์ผู้ใช้งาน</Text>
 
-          {/* รูปโปรไฟล์จริง */}
+          {/* รูปโปรไฟล์ */}
           <View style={styles.avatarWrap}>
             {me?.picture ? (
               <Image
@@ -172,26 +177,26 @@ export default function ProfileScreen() {
               />
             ) : (
               <View style={styles.avatarPlaceholder}>
-                <Ionicons name="person-circle-outline" size={80} color="#CBD5E1" />
+                <Ionicons name="person" size={42} color="#94A3B8" />
               </View>
             )}
           </View>
 
           {/* Username / Password */}
-          <SectionCard>
+          <View style={[styles.card, styles.shadowSm]}>
             <Text style={styles.label}>ชื่อผู้ใช้</Text>
-            <View style={[styles.inputMock, { justifyContent: "center", paddingHorizontal: 10 }]}>
-              <Text style={{ color: "#0F172A" }}>{me?.username || "-"}</Text>
+            <View style={[styles.inputMock, styles.inputPad]}>
+              <Text style={styles.inputText}>{me?.username || "-"}</Text>
             </View>
 
             <Text style={[styles.label, { marginTop: 12 }]}>รหัสผู้ใช้</Text>
-            <View style={[styles.inputMock, { justifyContent: "center", paddingHorizontal: 10 }]}>
-              <Text style={{ color: "#0F172A" }}>{"•".repeat(10)}</Text>
+            <View style={[styles.inputMock, styles.inputPad]}>
+              <Text style={styles.inputText}>{"•".repeat(10)}</Text>
             </View>
-          </SectionCard>
+          </View>
 
           {/* Usage */}
-          <SectionCard>
+          <View style={[styles.card, styles.shadowSm]}>
             <View style={styles.rowBetween}>
               <Text style={styles.sectionTitle}>แพ็กเกจที่ใช้งาน</Text>
               <Text style={{ color: "#0A57FF", fontWeight: "700" }}>
@@ -208,40 +213,57 @@ export default function ProfileScreen() {
               <ProgressBar value={quotaUsed} max={quotaMax || 1} />
             </View>
 
-            <View style={{ marginTop: 10 }}>
+            <View style={{ marginTop: 10, gap: 2 }}>
               <Text style={{ color: "#475569" }}>
                 แพ็กเกจ : <Text style={{ fontWeight: "700" }}>{packageName}</Text>
               </Text>
               <Text style={{ color: "#475569" }}>วันหมดอายุ : {expireText}</Text>
             </View>
 
-            <View style={{ marginTop: 12 }}>
-              <PrimaryButton title="อัปแพ็กเกจ" onPress={() => router.push("/(tabs)/packageUp")} />
-            </View>
-          </SectionCard>
+            {/* ปุ่มอัปแพ็กเกจ แบบไล่เฉด #014BFF → #01C3AF */}
+            <TouchableOpacity activeOpacity={0.9} style={{ marginTop: 12, borderRadius: 10, overflow: "hidden" }}
+              onPress={() => router.push("/(tabs)/packageUp")}>
+              <LinearGradient
+                colors={["#014BFF", "#01C3AF"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.primaryBtn}
+              >
+                <Text style={styles.primaryBtnText}>อัปแพ็กเกจ</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
 
-          {/* Store Info — ใช้ CardProfile (มี modal + banner ในตัว) */}
+          {/* ข้อมูลร้านค้า (มีไอคอนแก้ไขที่หัวการ์ดใน component) */}
           <CardProfile
             storeName={me?.store_name}
             storePhone={me?.store_phone || me?.phone}
             storeEmail={me?.store_email || me?.email}
-            // ยิง API จริง
             onSaveRequest={updateMyStoreInfo}
-            // หลังบันทึก: invalidate cache + refetch ให้แน่ใจว่า UI อัปเดต
             onSaved={async () => {
-              await queryClient.invalidateQueries({ queryKey: ["myProfile"] }); // ให้ key ตรงกับ useMyProfile()
+              await queryClient.invalidateQueries({ queryKey: ["myProfile"] });
               refetch();
             }}
           />
 
           {/* API Key */}
-          <SectionCard>
+          <View style={[styles.card, styles.shadowSm]}>
             <Text style={styles.sectionTitle}>API Key</Text>
-            <Text style={styles.apiText}>{tokenForDisplay}</Text>
+
+            <View style={{ gap: 8, marginTop: 6 }}>
+              {tokenChunks.map((chunk, idx) => (
+                <View key={idx} style={styles.apiChunk}>
+                  <Text numberOfLines={1} style={styles.apiChunkText}>
+                    {chunk}
+                  </Text>
+                </View>
+              ))}
+            </View>
+
             <TouchableOpacity style={styles.copyBtn} onPress={handleCopy}>
               <Text style={{ color: "#fff", fontWeight: "700" }}>คัดลอก</Text>
             </TouchableOpacity>
-          </SectionCard>
+          </View>
 
           {/* Logout */}
           <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
@@ -302,33 +324,61 @@ const styles = StyleSheet.create({
     right: 20,
     top: 16,
     zIndex: 5,
+    height: 30,
+    width: 30,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  h1: { fontSize: 20, fontWeight: "800", marginBottom: 10, marginTop: 20 },
-  avatarWrap: { alignItems: "center", marginBottom: 16 },
+  h1: { fontSize: 18, fontWeight: "800", marginBottom: 10, marginTop: 20 },
+
+  // avatar
+  avatarWrap: { alignItems: "center", marginBottom: 12 },
   avatarImage: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
+    width: 88,
+    height: 88,
+    borderRadius: 44,
     borderWidth: 2,
     borderColor: "#E2E8F0",
   },
   avatarPlaceholder: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: "#E2E8F0",
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: "#E5E7EB",
     alignItems: "center",
     justifyContent: "center",
   },
+
+  // card common
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    padding: 14,
+    marginBottom: 12,
+  },
+  shadowSm: {
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
+  },
+
+  // inputs mock
   label: { fontWeight: "700", color: "#1E293B", fontSize: 14 },
   inputMock: {
     backgroundColor: "#F8FAFC",
     borderRadius: 8,
-    height: 36,
+    height: 38,
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
-  sectionTitle: { fontWeight: "800", fontSize: 16, color: "#0F172A" },
+  inputPad: { justifyContent: "center", paddingHorizontal: 10 },
+  inputText: { color: "#0F172A" },
+
+  sectionTitle: { fontWeight: "800", fontSize: 15, color: "#0F172A" },
   rowBetween: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -337,28 +387,41 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", marginTop: 6, gap: 6 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#0A57FF" },
   packageLabel: { color: "#0A57FF", fontWeight: "700" },
-  infoLabel: { color: "#64748B", fontSize: 13 },
-  infoValue: { fontWeight: "700", color: "#0F172A" },
-  apiText: {
+
+  // API key
+  apiChunk: {
     backgroundColor: "#F8FAFC",
-    borderRadius: 8,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: "#E2E8F0",
-    padding: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  apiChunkText: {
     fontSize: 12,
-    marginTop: 8,
     color: "#0F172A",
   },
   copyBtn: {
     marginTop: 10,
-    backgroundColor: "#0A57FF",
+    backgroundColor: "#014BFF",
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 10,
   },
+
+  // primary gradient button
+  primaryBtn: {
+    height: 42,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 10,
+  },
+  primaryBtnText: { color: "#FFFFFF", fontWeight: "800" },
+
+  // logout
   logoutBtn: {
-    marginTop: 20,
+    marginTop: 8,
     backgroundColor: "#EF4444",
     borderRadius: 12,
     alignItems: "center",

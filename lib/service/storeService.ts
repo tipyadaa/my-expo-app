@@ -15,6 +15,8 @@ export type StoreBranch = {
   minAmount?: number;        // map -> MinRecieve
   hideSenderAcc?: boolean;   // map -> !ShowTransferor
   hideReceiverAcc?: boolean; // map -> !ShowRecipient
+  /** รายการ bank ids ที่ผูกกับสาขานี้ (parse จาก list_bank) */
+  bankIds?: number[];
 };
 
 /* ───────────────────────────────
@@ -23,6 +25,22 @@ export type StoreBranch = {
 type APIWrapped<T> = { code?: number; message?: string; data?: T };
 const unwrap = <T,>(x: APIWrapped<T> | T): T =>
   x && typeof x === "object" && "data" in (x as any) ? (x as any).data : (x as T);
+
+/** parse list_bank (string|array) -> number[] */
+const parseListBank = (v: any): number[] => {
+  if (Array.isArray(v)) return v.map((x) => Number(x)).filter((n) => Number.isFinite(n));
+  if (typeof v === "string") {
+    try {
+      const arr = JSON.parse(v);
+      return Array.isArray(arr)
+        ? arr.map((x) => Number(x)).filter((n) => Number.isFinite(n))
+        : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+};
 
 /** แปลง backend -> UI */
 const toUI = (r: any, i: number): StoreBranch => {
@@ -42,6 +60,7 @@ const toUI = (r: any, i: number): StoreBranch => {
   const showTransferor = normalizeBool(showTransferorRaw);
   const showRecipient = normalizeBool(showRecipientRaw);
   const min = r.min_receive ?? r.MinRecieve ?? 0;
+  const bankIds = parseListBank(r.list_bank ?? r.ListBank);
 
   return {
     id: String(r.id ?? r.ID ?? i),
@@ -51,6 +70,7 @@ const toUI = (r: any, i: number): StoreBranch => {
     minAmount: Number(min) || 0,
     hideSenderAcc: !showTransferor,
     hideReceiverAcc: !showRecipient,
+    bankIds,
   };
 };
 

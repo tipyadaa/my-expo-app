@@ -13,6 +13,7 @@ import PrimaryButton from "../../../Modal/components/ui/PrimaryButton";
 // hooks/service ที่ใช้เหมือนหน้า index.tsx
 import { useCreateBank } from "../../../lib/hooks/useBank";
 import { getStoredAuth } from "../../../lib/authService";
+import { encryptAccountNo } from "../../../lib/utils/crypt";
 
 type TabType = "bank" | "promptpay";
 type PromptPayType = "MSISDN" | "NATID" | "EWALLETID";
@@ -134,12 +135,19 @@ export default function AddBank() {
       is_active: 1,
     };
 
+    // build encrypted account number using user token/uid as secret
+    const auth = await getStoredAuth();
+    const secret = String(auth?.token || auth?.user?.uid || auth?.user?.id || 'SURE_SURE');
+    const plain = tab === 'bank' ? accountNo : ppValue;
+    const enc = encryptAccountNo(String(plain || ''), secret);
+
     if (tab === "bank") {
       payload = {
         ...payload,
         bank_code: selectedBank!.value,    // ใช้รหัส 3 หลักตาม listBank
         prompt_pay_type: "",
         account_no: accountNo,
+        account_no_crypt: enc,
         account_type: "BANK",
       };
     } else {
@@ -148,6 +156,7 @@ export default function AddBank() {
         bank_code: "PROMPTPAY",
         prompt_pay_type: selectedPP.value, // MSISDN | NATID | EWALLETID
         account_no: ppValue,
+        account_no_crypt: enc,
         account_type: "PROMPTPAY",
       };
     }
