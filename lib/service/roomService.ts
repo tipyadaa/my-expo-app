@@ -1,5 +1,6 @@
 // src/lib/service/roomService.ts
-import { httpGet } from "../http";
+import { httpGet, httpPut } from "../http";
+import { getCurrentUserId } from "../authSession";
 
 type ApiWrap<T> = { code?: number; message?: string; data?: T } | T;
 const unwrap = <T,>(input: ApiWrap<T>): T => {
@@ -72,4 +73,33 @@ export async function getRooms(): Promise<Room[]> {
 export async function getFirstRoom(): Promise<Room | null> {
   const rooms = await getRooms();
   return rooms.length > 0 ? rooms[0] : null;
+}
+
+/** Update a room (PUT /room2/update)
+ * - Requires: id
+ * - Optional: room fields to update (room_name, min_receive, show_transferor, show_recipient, list_bank, qr_token, etc.)
+ * - Automatically attaches user_id of current session
+ */
+export type UpdateRoomDto = Partial<
+  Pick<
+    Room,
+    | "room_name"
+    | "min_receive"
+    | "show_transferor"
+    | "show_recipient"
+    | "list_bank"
+    | "qr_token"
+    | "line_group_id"
+    | "quota_used"
+  >
+> & { id: number };
+
+export async function updateRoom(payload: UpdateRoomDto): Promise<Room> {
+  const user_id = await getCurrentUserId();
+  const raw = await httpPut<ApiWrap<Room> | Room>(`${BASE}/update`, {
+    ...payload,
+    user_id,
+  });
+  const data = unwrap(raw);
+  return toRoom(data);
 }
