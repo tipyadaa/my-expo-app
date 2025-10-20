@@ -18,6 +18,9 @@ import GradientHeader from "../../../Modal/components/ui/GradientHeader";
 import { useStores } from "../../../lib/service/storeService";
 import { useLocalAuthQuery } from "../../../lib/authService";
 
+// ⬇️ เพิ่ม: ดึงบัญชีธนาคารของผู้ใช้
+import { useBanksMine } from "../../../lib/hooks/useBank";
+
 export default function DetailStore() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -27,17 +30,44 @@ export default function DetailStore() {
   const displayName =
     auth?.user?.name_th || auth?.user?.username || auth?.user?.email || "ผู้ใช้งาน";
 
-  // โหลดรายการทั้งหมดแล้วหา item ที่ id ตรงกับพาธ
+  // โหลดรายการสาขาทั้งหมดแล้วหา item ที่ id ตรงกับพาธ
   const { data, isLoading, isError, refetch, isFetching } = useStores();
   const item = React.useMemo(
     () => (data ?? []).find((x) => x.id === String(id)),
     [data, id]
   );
 
+  // โหลดบัญชีธนาคารของผู้ใช้ปัจจุบัน
+  const {
+    data: myBanks = [],
+    isLoading: isLoadingBanks,
+    isError: isBankError,
+    refetch: refetchBanks,
+  } = useBanksMine();
+
   const storeName = item?.name ?? "-";
   const statusText = item?.status ?? "ยังไม่ได้เชื่อมต่อ";
   const code = item?.code ?? "-";
   const storeNo = `#${String(item?.id ?? "").padStart(5, "0")}`;
+
+  // --- จับคู่ bank_ids ของสาขากับรายการบัญชีของผู้ใช้ ---
+  // รองรับทั้ง number[] และ string[] จาก backend
+  const linkedBankIds: number[] = React.useMemo(() => {
+    const raw =
+      (item as any)?.bank_ids ??
+      (item as any)?.bankIds ??
+      (item as any)?.banks ??
+      [];
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .map((v) => Number(v))
+      .filter((v) => Number.isFinite(v) && v > 0);
+  }, [item]);
+
+  const linkedBanks = React.useMemo(() => {
+    if (!linkedBankIds.length) return [];
+    return myBanks.filter((b: any) => linkedBankIds.includes(Number(b.id)));
+  }, [myBanks, linkedBankIds]);
 
   const copyCode = async () => {
     if (!code || code === "-") {
@@ -49,7 +79,6 @@ export default function DetailStore() {
   };
 
   const onEdit = () => {
-    // ไปหน้าแก้ไข (รองรับเส้นทางแบบ editStore?id=...)
     router.push({ pathname: "/(tabs)/stores/editStore", params: { id: String(id) } });
   };
 
@@ -231,10 +260,46 @@ export default function DetailStore() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>บัญชีรับเงินที่เชื่อมต่อ</Text>
           <View style={{ height: 10 }} />
-          <Text style={{ color: "#64748B" }}>
-            ยังไม่มีข้อมูลบัญชีที่เชื่อมต่อสำหรับสาขานี้
-          </Text>
-          {/* TODO: เมื่อมี endpoint บัญชีของสาขา ค่อย map รายการตรงนี้ */}
+
+          {/* สถานะโหลด/ผิดพลาด */}
+          {isLoadingBanks && (
+            <View style={{ paddingVertical: 6 }}>
+              <ActivityIndicator />
+              <Text style={{ color: "#64748B", marginTop: 6 }}>กำลังโหลดบัญชี...</Text>
+            </View>
+          )}
+          {isBankError && (
+            <View style={{ paddingVertical: 6 }}>
+              <Text style={{ color: "#DC2626" }}>โหลดบัญชีไม่สำเร็จ</Text>
+              <TouchableOpacity onPress={refetchBanks}>
+                <Text style={{ color: "#0A57FF", marginTop: 4 }}>ลองใหม่</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* รายการ pill */}
+          {!isLoadingBanks && !isBankError && linkedBanks.length > 0 ? (
+            <View style={styles.pillsWrap}>
+              {linkedBanks.map((b: any) => {
+                const bankName = b.name_th || b.name_en || b.bank_code || "ธนาคาร";
+                const last4 = String(b.account_no || "").slice(-4);
+                const label = `${bankName} · ${b.account_no}`;
+                return (
+                  <View key={b.id} style={[styles.pill, styles.pillOn]}>
+                    <Ionicons name="card-outline" size={14} color="#065F46" />
+                    <Text style={[styles.pillText, { color: "#065F46" }]} numberOfLines={1}>
+                      {label}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          ) : (
+            !isLoadingBanks &&
+            !isBankError && (
+              <Text style={{ color: "#64748B" }}>ยังไม่มีบัญชีที่เชื่อมต่อสำหรับสาขานี้</Text>
+            )
+          )}
         </View>
       </ScrollView>
     </View>
@@ -347,4 +412,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   primaryBtnText: { color: "#fff", fontWeight: "800" },
+
+  // pills
+  pillsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  pill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  pillOn: { backgroundColor: "#ECFDF5", borderColor: "#A7F3D0" }, // เขียวอ่อน
+  pillText: { fontSize: 12, fontWeight: "700" },
 });

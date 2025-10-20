@@ -176,7 +176,7 @@ export default function AddBank() {
         right={
           <Link href="/(tabs)/profile" asChild>
             <TouchableOpacity style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <Ionicons name="storefront-outline" size={18} color="#EAF4FF" />
+              <MaterialCommunityIcons name="storefront-outline" size={18} color="#EAF4FF" />
               <Text style={{ color: "#EAF4FF" }}>Hi, {username}</Text>
             </TouchableOpacity>
           </Link>

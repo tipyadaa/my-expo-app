@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Link } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Svg, Polyline, Line as SvgLine, Circle, Text as SvgText } from "react-native-svg";
 
 import GradientHeader from "../../Modal/components/ui/GradientHeader";
@@ -241,14 +241,12 @@ export default function Report() {
       {/* Header */}
       <GradientHeader
         right={
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-            <Ionicons name="search" size={18} color="#EAF4FF" />
-            <Link href="/(tabs)/profile" asChild>
-              <TouchableOpacity>
-                <Text style={{ color: "#EAF4FF" }}>Hi, {username}</Text>
-              </TouchableOpacity>
-            </Link>
-          </View>
+          <Link href="/(tabs)/profile" asChild>
+            <TouchableOpacity style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <MaterialCommunityIcons name="storefront-outline" size={18} color="#EAF4FF" />
+              <Text style={{ color: "#EAF4FF" }}>Hi, {username}</Text>
+            </TouchableOpacity>
+          </Link>
         }
       />
 

@@ -11,7 +11,7 @@ import {
   Image,
 } from "react-native";
 import { Link, useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import GradientHeader from "../../../Modal/components/ui/GradientHeader";
 import SectionCard from "../../../Modal/components/ui/SectionCard";
 
@@ -277,7 +277,7 @@ export default function BankList() {
             right={
               <Link href="/(tabs)/profile" asChild>
                 <TouchableOpacity style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                  <Ionicons name="storefront-outline" size={18} color="#EAF4FF" />
+                  <MaterialCommunityIcons name="storefront-outline" size={18} color="#EAF4FF" />
                   <Text style={{ color: "#EAF4FF" }}>Hi, {username}</Text>
                 </TouchableOpacity>
               </Link>

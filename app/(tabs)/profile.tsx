@@ -13,6 +13,7 @@ import {
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as Clipboard from "expo-clipboard";
+import { useQueryClient } from "@tanstack/react-query";
 
 import GradientHeader from "../../Modal/components/ui/GradientHeader";
 import SectionCard from "../../Modal/components/ui/SectionCard";
@@ -22,9 +23,14 @@ import PrimaryButton from "../../Modal/components/ui/PrimaryButton";
 import { useMyProfile } from "../../lib/hooks/useProfile";
 import { clearStoredAuth } from "../../lib/authService";
 import { fetchPlans, type Plan } from "../../lib/service/packageService";
+import CardProfile from "../../Modal/components/ui/CardProfile";
+
+// ✅ ใช้ service จริง
+import { updateMyStoreInfo } from "../../lib/service/profileService";
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { data: me, isLoading, isError, refetch } = useMyProfile();
 
   // ---------- ชื่อผู้ใช้ ----------
@@ -53,9 +59,7 @@ export default function ProfileScreen() {
   React.useEffect(() => {
     if (!me || plans.length === 0) return;
     const currentPid = Number(me.package_id ?? 0);
-    const matched = plans.find(
-      (p) => (p.id_num ?? Number(p.id)) === currentPid
-    );
+    const matched = plans.find((p) => (p.id_num ?? Number(p.id)) === currentPid);
     setPlanMeta({
       name: matched?.name || me.package_name || "free trial",
       days: matched?.days ?? 30,
@@ -66,8 +70,7 @@ export default function ProfileScreen() {
   // ---------- วันหมดอายุ (package_change_date + days) ----------
   const expireText = React.useMemo(() => {
     if (!me) return "-";
-    const startISO =
-      me.package_change_date || me.bill_date || me.created_date || "";
+    const startISO = me.package_change_date || me.bill_date || me.created_date || "";
     if (!startISO || !planMeta?.days) return "-";
     const endISO = addDaysISO(startISO, planMeta.days);
     return formatThaiDate(endISO);
@@ -133,11 +136,7 @@ export default function ProfileScreen() {
       <GradientHeader
         right={
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-            <MaterialCommunityIcons
-              name="storefront-outline"
-              size={18}
-              color="#EAF4FF"
-            />
+            <MaterialCommunityIcons name="storefront-outline" size={18} color="#EAF4FF" />
             <Text style={{ color: "#EAF4FF" }}>Hi, {displayName}</Text>
           </View>
         }
@@ -158,17 +157,11 @@ export default function ProfileScreen() {
                 source={{ uri: me.picture }}
                 style={styles.avatarImage}
                 resizeMode="cover"
-                onError={(e) =>
-                  console.warn("⚠️ โหลดรูปไม่สำเร็จ:", e.nativeEvent.error)
-                }
+                onError={(e) => console.warn("⚠️ โหลดรูปไม่สำเร็จ:", e.nativeEvent.error)}
               />
             ) : (
               <View style={styles.avatarPlaceholder}>
-                <Ionicons
-                  name="person-circle-outline"
-                  size={80}
-                  color="#CBD5E1"
-                />
+                <Ionicons name="person-circle-outline" size={80} color="#CBD5E1" />
               </View>
             )}
           </View>
@@ -176,22 +169,12 @@ export default function ProfileScreen() {
           {/* Username / Password */}
           <SectionCard>
             <Text style={styles.label}>ชื่อผู้ใช้</Text>
-            <View
-              style={[
-                styles.inputMock,
-                { justifyContent: "center", paddingHorizontal: 10 },
-              ]}
-            >
+            <View style={[styles.inputMock, { justifyContent: "center", paddingHorizontal: 10 }]}>
               <Text style={{ color: "#0F172A" }}>{me?.username || "-"}</Text>
             </View>
 
             <Text style={[styles.label, { marginTop: 12 }]}>รหัสผู้ใช้</Text>
-            <View
-              style={[
-                styles.inputMock,
-                { justifyContent: "center", paddingHorizontal: 10 },
-              ]}
-            >
+            <View style={[styles.inputMock, { justifyContent: "center", paddingHorizontal: 10 }]}>
               <Text style={{ color: "#0F172A" }}>{"•".repeat(10)}</Text>
             </View>
           </SectionCard>
@@ -218,49 +201,32 @@ export default function ProfileScreen() {
               <Text style={{ color: "#475569" }}>
                 แพ็กเกจ : <Text style={{ fontWeight: "700" }}>{packageName}</Text>
               </Text>
-              <Text style={{ color: "#475569" }}>
-                วันหมดอายุ : {expireText}
-              </Text>
+              <Text style={{ color: "#475569" }}>วันหมดอายุ : {expireText}</Text>
             </View>
 
             <View style={{ marginTop: 12 }}>
-              <PrimaryButton
-                title="อัปแพ็กเกจ"
-                onPress={() => router.push("/(tabs)/packageUp")}
-              />
+              <PrimaryButton title="อัปแพ็กเกจ" onPress={() => router.push("/(tabs)/packageUp")} />
             </View>
           </SectionCard>
 
-          {/* Store Info */}
-          <SectionCard>
-            <View style={styles.rowBetween}>
-              <Text style={styles.sectionTitle}>ข้อมูลร้านค้า</Text>
-            </View>
-
-            <View style={{ marginTop: 10, gap: 4 }}>
-              <Text style={styles.infoLabel}>ชื่อร้านค้า</Text>
-              <Text style={styles.infoValue}>{me?.store_name || "-"}</Text>
-
-              <Text style={[styles.infoLabel, { marginTop: 6 }]}>
-                เบอร์โทรศัพท์
-              </Text>
-              <Text style={styles.infoValue}>
-                {me?.store_phone || me?.phone || "-"}
-              </Text>
-
-              <Text style={[styles.infoLabel, { marginTop: 6 }]}>อีเมล</Text>
-              <Text style={styles.infoValue}>
-                {me?.store_email || me?.email || "-"}
-              </Text>
-            </View>
-          </SectionCard>
+          {/* Store Info — ใช้ CardProfile (มี modal + banner ในตัว) */}
+          <CardProfile
+            storeName={me?.store_name}
+            storePhone={me?.store_phone || me?.phone}
+            storeEmail={me?.store_email || me?.email}
+            // ยิง API จริง
+            onSaveRequest={updateMyStoreInfo}
+            // หลังบันทึก: invalidate cache + refetch ให้แน่ใจว่า UI อัปเดต
+            onSaved={async () => {
+              await queryClient.invalidateQueries({ queryKey: ["myProfile"] }); // ให้ key ตรงกับ useMyProfile()
+              refetch();
+            }}
+          />
 
           {/* API Key */}
           <SectionCard>
             <Text style={styles.sectionTitle}>API Key</Text>
-            <Text style={styles.apiText}>
-              {me?.token || me?.access_token || "-"}
-            </Text>
+            <Text style={styles.apiText}>{me?.token || me?.access_token || "-"}</Text>
             <TouchableOpacity style={styles.copyBtn} onPress={handleCopy}>
               <Text style={{ color: "#fff", fontWeight: "700" }}>คัดลอก</Text>
             </TouchableOpacity>

@@ -13,7 +13,7 @@ import {
   RefreshControl,
   ActivityIndicator,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Link } from "expo-router";
 
 import GradientHeader from "../../Modal/components/ui/GradientHeader";
@@ -84,8 +84,14 @@ export default function HistoryScreen() {
     const source = (data as SureSureTransaction[]) || [];
     let filtered = source;
 
+    // ✅ ใช้ tone จาก getHistoryPill เพื่อกรองสถานะให้แม่นยำ
     if (filter !== "แสดงรายการทั้งหมด") {
-      filtered = filtered.filter((x) => getHistoryPill(x.status).label === filter);
+      filtered = filtered.filter((x) => {
+        const pill = getHistoryPill(x.status || "");
+        if (filter === "สำเร็จ") return pill.tone === "success";
+        if (filter === "ไม่สำเร็จ") return pill.tone === "danger";
+        return true;
+      });
     }
 
     const keyword = q.trim().toLowerCase();
@@ -99,7 +105,7 @@ export default function HistoryScreen() {
       });
     }
 
-    // เรียงล่าสุดก่อน — พยายามใช้ updated > created > transDate+Time
+    // เรียงล่าสุดก่อน — updated > created > transDate+Time
     filtered.sort((a, b) => {
       const aKey =
         new Date(
@@ -112,21 +118,32 @@ export default function HistoryScreen() {
       return bKey - aKey;
     });
 
-    return filtered.map((x) => ({
+    // สร้างข้อมูลสำหรับแสดงผล
+    const mapped = filtered.map((x) => ({
       id: String(x.id ?? ""),
       when: formatTxnDateTime(x),
       transferId: x.txid || x.refNo || "-",
-      amount: x.amount ?? 0,
+      amount: Number.isFinite(x.amount as number) ? Number(x.amount) : 0,
       who: x.receiveName || x.senderName || "",
       pill: getHistoryPill(x.status || ""),
     }));
+
+    if (__DEV__) {
+      const tones = Array.from(new Set(mapped.map((m) => m.pill.tone)));
+      // ดูว่ามีโทนอะไรบ้างไว้ดีบั๊ก
+      // console.log("tones:", tones);
+    }
+
+    return mapped;
   }, [data, filter, q]);
 
   const renderItem = ({ item }: { item: any }) => (
     <View style={styles.itemRow}>
       {/* ซ้าย: ชื่อ/เวลา/ID */}
       <View style={{ flex: 1 }}>
-        <Text style={[styles.cellText, { fontWeight: "600" }]}>{item.who}</Text>
+        <Text style={[styles.cellText, { fontWeight: "600" }]} numberOfLines={1}>
+          {item.who || "-"}
+        </Text>
         <Text style={[styles.cellText, { marginTop: 2, color: "#475569" }]}>{item.when}</Text>
         <Text style={[styles.cellText, { marginTop: 2, color: "#64748B" }]}>
           ID: {item.transferId}
@@ -155,7 +172,11 @@ export default function HistoryScreen() {
           <Text
             style={[
               styles.pillText,
-              item.pill.tone === "danger" ? { color: "#C40000" } : { color: "#057A3B" },
+              item.pill.tone === "danger"
+                ? { color: "#C40000" }
+                : item.pill.tone === "success"
+                ? { color: "#057A3B" }
+                : { color: "#0F172A" },
             ]}
           >
             {item.pill.label}
@@ -179,7 +200,7 @@ export default function HistoryScreen() {
       style={{ flex: 1, backgroundColor: "#F6F8FB" }}
       contentContainerStyle={{ paddingBottom: 96 }}
       data={rows}
-      keyExtractor={(it) => it.id}
+      keyExtractor={(it) => it.id || Math.random().toString(36)}
       refreshControl={<RefreshControl refreshing={isFetching} onRefresh={() => refetch()} />}
       ListHeaderComponent={
         <>
@@ -188,7 +209,7 @@ export default function HistoryScreen() {
             right={
               <Link href="/(tabs)/profile" asChild>
                 <TouchableOpacity style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                  <Ionicons name="storefront-outline" size={18} color="#EAF4FF" />
+                  <MaterialCommunityIcons name="storefront-outline" size={18} color="#EAF4FF" />
                   <Text style={{ color: "#EAF4FF" }}>Hi, {displayName}</Text>
                 </TouchableOpacity>
               </Link>

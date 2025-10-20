@@ -72,7 +72,11 @@ const unwrap = <T,>(res: ApiWrap<T>): T => (res as any)?.data ?? (res as any);
 
 const BASE = "/user";
 
-/** ISO helper (local timezone) */
+/**
+ * แปลง Date เป็น ISO string
+ * NOTE: ฝั่งคุณคอมเมนต์ไว้ว่า backend ใช้ TO_CHAR(...'Z') อยู่แล้ว
+ * ถ้าต้องการ “เวลาท้องถิ่น + ใส่ Z” ตามของเดิม ให้คงแบบนี้ไว้
+ */
 function toLocalISO(d: Date = new Date()): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   const y = d.getFullYear();
@@ -81,7 +85,7 @@ function toLocalISO(d: Date = new Date()): string {
   const hh = pad(d.getHours());
   const mm = pad(d.getMinutes());
   const ss = pad(d.getSeconds());
-  return `${y}-${m}-${day}T${hh}:${mm}:${ss}Z`; // backend ฝั่งคุณใช้ TO_CHAR(...'Z') อยู่แล้ว
+  return `${y}-${m}-${day}T${hh}:${mm}:${ss}Z`;
 }
 function addDaysISO(isoOrNow: string | Date, days: number): string {
   const base = typeof isoOrNow === "string" ? new Date(isoOrNow) : new Date(isoOrNow);
@@ -92,7 +96,7 @@ function addDaysISO(isoOrNow: string | Date, days: number): string {
 /** อ่าน uid จาก local auth */
 async function getCurrentUid(): Promise<string> {
   const auth = await getStoredAuth();
-  // คุณเก็บ user ไว้ตรงไหนให้ map ให้ครบ
+  // map ให้ครอบคลุมกรณีที่เก็บต่างกัน
   const uid = auth?.user?.uid ?? auth?.user?.id ?? auth?.uid ?? "";
   if (!uid) throw new Error("Missing UID in auth");
   return String(uid);
@@ -188,5 +192,19 @@ export async function updateUserPackage(input: {
     quota_usage: 0,             // รีเซ็ตการใช้งาน
     package_change_date: startISO,
     bill_date: endISO,
+  });
+}
+
+/** อัปเดตข้อมูลร้านของ "ฉัน" (แบบสะดวก) */
+export type UpdateStoreInput = {
+  store_name: string;
+  store_phone: string;
+  store_email: string;
+};
+export async function updateMyStoreInfo(input: UpdateStoreInput): Promise<void> {
+  await updateMyProfile({
+    store_name: input.store_name,
+    store_phone: input.store_phone,
+    store_email: input.store_email,
   });
 }

@@ -1,4 +1,4 @@
-// app/(tabs)/stores/addStore.tsx 
+// app/(tabs)/stores/addStore.tsx
 import * as React from "react";
 import {
   View,
@@ -24,32 +24,53 @@ import {
 } from "../../../lib/service/storeService";
 import { useLocalAuthQuery } from "../../../lib/authService";
 
-type LinkedAccount = { id: string; bank: string; number: string; enabled: boolean };
+// ⬇️ ดึงบัญชีธนาคารจริงของผู้ใช้ปัจจุบัน
+import { useBanksMine } from "../../../lib/hooks/useBank";
+import type { BankItem } from "../../../lib/hooks/useBank";
+
+type LinkedAccount = { id: number; bank: string; number: string; enabled: boolean };
 
 export default function AddStore() {
   const router = useRouter();
 
-  // ข้อมูลผู้ใช้ไว้ทักทาย
+  // ทักทายผู้ใช้
   const { data: auth } = useLocalAuthQuery();
   const displayName =
     auth?.user?.name_th || auth?.user?.username || auth?.user?.email || "ผู้ใช้งาน";
 
-  // ใช้ hook สำหรับสร้าง (ไม่ต้องส่ง userId — service จะดึงเอง)
+  // hook สร้างสาขา
   const { mutate: createMutate, isPending: isCreating } = useCreateStore();
 
   // ── form state ────────────────────────────────────────────────
   const [branchName, setBranchName] = React.useState("");
-  const [linked, setLinked] = React.useState<LinkedAccount[]>([
-    // เดโม่ UI – ยังไม่ผูก backend บัญชีธนาคารในหน้านี้
-    { id: "a1", bank: "แอนด์ แอนด์", number: "4327999134", enabled: true },
-    { id: "a2", bank: "แอนด์ แอนด์", number: "1115356122", enabled: false },
-  ]);
+
+  // ดึงบัญชีธนาคารจริงจาก backend
+  const {
+    data: bankList = [],
+    isLoading: isLoadingBanks,
+    isError: isBankError,
+    refetch: refetchBanks,
+  } = useBanksMine();
+
+  // เก็บรายการบัญชีในรูปแบบที่ UI ใช้กับสวิตช์
+  const [linked, setLinked] = React.useState<LinkedAccount[]>([]);
+  React.useEffect(() => {
+    const mapped: LinkedAccount[] = (bankList as BankItem[]).map((b) => ({
+      id: Number(b.id),
+      bank: b.name_th || b.name_en || b.bank_code || "ธนาคาร",
+      number: b.account_no,
+      // ถ้ามี is_active (0/1) ใช้เป็นค่าเริ่มต้นได้เลย
+      enabled: !!b.is_active, // เปลี่ยนตาม business rule ได้
+    }));
+    setLinked(mapped);
+  }, [bankList]);
+
   const [showRules, setShowRules] = React.useState(true);
   const [minAmount, setMinAmount] = React.useState<number>(80);
   const [hideSenderAcc, setHideSenderAcc] = React.useState(false);
   const [hideReceiverAcc, setHideReceiverAcc] = React.useState(false);
 
-  const toggleLinked = (id: string) =>
+  const toggleLinked = (id: number) =>
     setLinked((prev) => prev.map((x) => (x.id === id ? { ...x, enabled: !x.enabled } : x)));
 
   const plus = () => setMinAmount((v) => Math.min(999999, v + 1));
@@ -61,22 +82,31 @@ export default function AddStore() {
       return;
     }
 
-    // payload สำหรับ service (service จะ map เป็น body ของ /room2/create)
-    const payload: Omit<StoreBranch, "id"> = {
+    const selectedIds = linked.filter((x) => x.enabled).map((x) => x.id);
+
+    // payload สำหรับ backend (เพิ่ม bank_ids ส่งไปเชื่อมสาขากับบัญชี)
+    const payload: Omit<StoreBranch, "id"> & { bank_ids?: number[] } = {
       name: branchName.trim(),
-      status: "ยังไม่ได้เชื่อมต่อ", // เริ่มต้นยังไม่เชื่อมต่อ (line_group_id = "")
-      code: "",                      // ถ้ายังไม่มี QRToken ให้เว้นว่างได้
+      status: "ยังไม่ได้เชื่อมต่อ",
+      code: "",
       minAmount,
       hideSenderAcc,
       hideReceiverAcc,
+      bank_ids: selectedIds, // 👈 เปลี่ยนชื่อฟิลด์ให้ตรงกับฝั่ง server ถ้าจำเป็น
     };
 
     createMutate(payload, {
       onSuccess: () => {
-        const enabled = linked.filter((x) => x.enabled).map((x) => x.number);
+        const showList =
+          selectedIds.length === 0
+            ? "-"
+            : linked
+                .filter((x) => selectedIds.includes(x.id))
+                .map((x) => x.number)
+                .join(", ");
         Alert.alert(
           "สร้างสาขาสำเร็จ",
-          `ชื่อสาขา: ${branchName}\nบัญชีที่เชื่อมต่อ: ${enabled.join(", ") || "-"}\nเตือนขั้นต่ำ: ${minAmount}`,
+          `ชื่อสาขา: ${branchName}\nบัญชีที่เชื่อมต่อ: ${showList}\nเตือนขั้นต่ำ: ${minAmount}`,
           [{ text: "ตกลง", onPress: () => router.back() }]
         );
       },
@@ -88,7 +118,7 @@ export default function AddStore() {
 
   return (
     <View style={{ flex: 1, backgroundColor: "#F6F8FB" }}>
-      {/* Gradient header (โปรไฟล์ด้านขวา) */}
+      {/* Header */}
       <GradientHeader
         right={
           <Link href="/(tabs)/profile" asChild>
@@ -100,13 +130,12 @@ export default function AddStore() {
         }
       />
 
-      {/* Panel ขาวโค้ง + ปุ่มปิด X */}
+      {/* Panel */}
       <View style={styles.panel}>
         <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
           <Ionicons name="close" size={22} color="#111827" />
         </TouchableOpacity>
 
-        {/* หัวเรื่อง + ไอคอนร้าน */}
         <Text style={styles.h1}>สร้างสาขาร้านค้า</Text>
         <View style={styles.iconWrap}>
           <MaterialCommunityIcons name="storefront-outline" size={36} color="#10B981" />
@@ -114,7 +143,7 @@ export default function AddStore() {
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
           <SectionCard>
-            {/* กล่อง: ชื่อสาขา */}
+            {/* ชื่อสาขา */}
             <Text style={styles.groupTitle}>ชื่อสาขาร้านค้า</Text>
             <TextInput
               style={styles.input}
@@ -123,24 +152,47 @@ export default function AddStore() {
               onChangeText={setBranchName}
             />
 
-            {/* กล่อง: บัญชีรับเงินที่เชื่อมต่อ (เดโม่ UI) */}
+            {/* บัญชีรับเงินที่เชื่อมต่อ (ดึงจริง) */}
             <Text style={[styles.groupTitle, { marginTop: 12 }]}>บัญชีรับเงินที่เชื่อมต่อ</Text>
-            {linked.map((a) => (
-              <View key={a.id} style={styles.rowBetween}>
-                <View>
-                  <Text style={{ fontWeight: "700" }}>{a.bank}</Text>
-                  <Text style={{ color: "#64748B" }}>{a.number}</Text>
-                </View>
-                <Switch
-                  value={a.enabled}
-                  onValueChange={() => toggleLinked(a.id)}
-                  trackColor={{ false: "#CBD5E1", true: "#93C5FD" }}
-                  thumbColor={a.enabled ? "#2563EB" : "#f4f3f4"}
-                />
-              </View>
-            ))}
 
-            {/* กล่อง: ตั้งค่าระบบการตรวจสอบ */}
+            {isLoadingBanks && (
+              <View style={{ paddingVertical: 10 }}>
+                <ActivityIndicator />
+                <Text style={{ color: "#64748B", marginTop: 6 }}>กำลังโหลดบัญชีธนาคาร...</Text>
+              </View>
+            )}
+
+            {isBankError && (
+              <View style={{ paddingVertical: 10 }}>
+                <Text style={{ color: "#DC2626" }}>โหลดบัญชีธนาคารไม่สำเร็จ</Text>
+                <TouchableOpacity onPress={refetchBanks}>
+                  <Text style={{ color: "#0A57FF", marginTop: 4 }}>ลองใหม่</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {!isLoadingBanks && !isBankError && linked.length === 0 && (
+              <Text style={{ color: "#64748B" }}>ยังไม่มีบัญชีที่เชื่อมต่อ</Text>
+            )}
+
+            {!isLoadingBanks &&
+              !isBankError &&
+              linked.map((a) => (
+                <View key={a.id} style={styles.rowBetween}>
+                  <View>
+                    <Text style={{ fontWeight: "700" }}>{a.bank}</Text>
+                    <Text style={{ color: "#64748B" }}>{a.number}</Text>
+                  </View>
+                  <Switch
+                    value={a.enabled}
+                    onValueChange={() => toggleLinked(a.id)}
+                    trackColor={{ false: "#CBD5E1", true: "#93C5FD" }}
+                    thumbColor={a.enabled ? "#2563EB" : "#f4f3f4"}
+                  />
+                </View>
+              ))}
+
+            {/* ตั้งค่าระบบการตรวจสอบ */}
             <TouchableOpacity style={styles.accordionHead} onPress={() => setShowRules((s) => !s)}>
               <Text style={styles.groupTitle}>ตั้งค่าระบบการตรวจสอบ</Text>
               <Ionicons name={showRules ? "chevron-up" : "chevron-down"} size={18} color="#64748B" />
@@ -148,7 +200,6 @@ export default function AddStore() {
 
             {showRules && (
               <View style={{ marginTop: 6 }}>
-                {/* เตือนยอดขั้นต่ำ + stepper */}
                 <Text style={styles.helper}>เตือน ยอดเงินขั้นต่ำ *</Text>
                 <View style={styles.stepper}>
                   <TextInput
@@ -166,7 +217,6 @@ export default function AddStore() {
                   </TouchableOpacity>
                 </View>
 
-                {/* switches */}
                 <View style={styles.rowBetween}>
                   <Text style={{ color: "#0F172A" }}>ซ่อนเลขบัญชีผู้โอน</Text>
                   <Switch
