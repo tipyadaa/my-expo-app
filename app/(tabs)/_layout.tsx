@@ -1,11 +1,34 @@
 // app/(tabs)/_layout.tsx
 import React from "react";
-import { View, StyleSheet } from "react-native";
-import { Slot } from "expo-router";
+import { View, StyleSheet, ActivityIndicator } from "react-native";
+import { Slot, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import CustomTabBar from "../../Modal/components/ui/CustomTabBar";
+import { useLocalAuthQuery } from "../../lib/authService";
 
 export default function TabsLayout() {
+  const router = useRouter();
+  const { data, isLoading, isFetching } = useLocalAuthQuery();
+  const loading = isLoading || isFetching;
+
+  React.useEffect(() => {
+    if (!loading && !data?.token) {
+      router.replace("/appLogin");
+    }
+  }, [loading, data?.token, router]);
+
+  if (loading) {
+    return (
+      <View style={[styles.root, styles.loading]}>
+        <ActivityIndicator />
+      </View>
+    );
+  }
+
+  if (!data?.token) {
+    return null;
+  }
+
   return (
     <View style={styles.root}>
       <View style={styles.content}>
@@ -29,4 +52,5 @@ const styles = StyleSheet.create({
   tabSafeArea: {
     backgroundColor: "#fff",      // สีเดียวกับแท็บ
   },
+  loading: { alignItems: "center", justifyContent: "center" },
 });
