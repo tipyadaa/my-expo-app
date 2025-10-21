@@ -21,7 +21,7 @@ import ProgressBar from "../../Modal/components/ui/ProgressBar";
 import PrimaryButton from "../../Modal/components/ui/PrimaryButton";
 
 import { useMyProfile } from "../../lib/hooks/useProfile";
-import { clearStoredAuth } from "../../lib/authService";
+import { logout } from "../../lib/authService";
 import { fetchPlans, type Plan } from "../../lib/service/packageService";
 import CardProfile from "../../Modal/components/ui/CardProfile";
 
@@ -102,17 +102,18 @@ export default function ProfileScreen() {
   const handleLogout = () => {
     Alert.alert("ออกจากระบบ", "คุณต้องการออกจากระบบใช่หรือไม่?", [
       { text: "ยกเลิก", style: "cancel" },
-      {
-        text: "ออกจากระบบ",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            if (typeof clearStoredAuth === "function") await clearStoredAuth();
-          } finally {
-            router.replace("/appLogin");
-          }
-        },
-      },
+          {
+            text: "ออกจากระบบ",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                await logout();
+                queryClient.clear();
+              } finally {
+                router.replace("/appLogin");
+              }
+            },
+          },
     ]);
   };
 
