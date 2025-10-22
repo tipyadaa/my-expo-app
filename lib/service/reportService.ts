@@ -66,15 +66,20 @@ export async function fetchPackages(): Promise<SureSurePackage[]> {
 
 /** ดึงรายการธุรกรรมของ user ปัจจุบันทั้งหมดจาก /transaction/get/:userId */
 export async function fetchTransactionsMine(): Promise<SureSureTransaction[]> {
-  const userId = await getCurrentUserId(); // backend /transaction/get/:id = user_id (number)
-  const res = await httpGet<ApiWrap<SureSureTransaction[]>>(`/transaction/get/${userId}`);
-  const list = unwrap(res) ?? [];
-  // ปรับรูปแบบค่าบางตัวเป็น number/trim ป้องกัน front ล้ม
-  return list.map((t) => ({
-    ...t,
-    amount: t.amount !== undefined ? Number(t.amount) : undefined,
-    status: String(t.status || ""),
-  }));
+  try {
+    const userId = await getCurrentUserId(); // backend /transaction/get/:id = user_id (number)
+    const res = await httpGet<ApiWrap<SureSureTransaction[]>>(`/transaction/get/${userId}`);
+    const list = unwrap(res) ?? [];
+    // ปรับรูปแบบค่าบางตัวเป็น number/trim ป้องกัน front ล้ม
+    return list.map((t) => ({
+      ...t,
+      amount: t.amount !== undefined ? Number(t.amount) : undefined,
+      status: String(t.status || ""),
+    }));
+  } catch (_err) {
+    // ถ้า endpoint ตอบว่าง/ไม่พร้อม ให้ถือว่าไม่มีข้อมูล (แสดง 0) แทนการ throw
+    return [];
+  }
 }
 
 /* ───────── Helpers สำหรับคำนวณบน client ───────── */

@@ -35,9 +35,13 @@ function buildHeaders(extra?: Record<string, string>, token?: string): HeadersIn
   const headers: Record<string, string> = {
     Accept: "application/json",
     "Content-Type": "application/json",
+    "ngrok-skip-browser-warning": "true",
     ...(extra || {}),
   };
-  if (token) headers.Authorization = `Bearer ${token}`;
+  if (token) {
+    headers.Authorization = `Bearer ${token}`; // บาง endpoint รองรับ Bearer
+    headers.apikey = token;                    // บาง endpoint ใช้คีย์ apikey
+  }
   return headers;
 }
 

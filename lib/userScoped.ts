@@ -1,5 +1,5 @@
 // src/lib/service/userScoped.ts
-import { httpGet, httpPost, httpPut, httpDelete } from "../lib/http";
+import { httpGet, httpPost, httpPut, httpDelete } from "./http";
 import { getCurrentUserId } from "./authSession";
 
 /** ต่อ query string แบบง่าย */

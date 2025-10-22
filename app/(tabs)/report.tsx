@@ -12,9 +12,9 @@ import {
   Alert,
 } from "react-native";
 import { Link, useLocalSearchParams, useRouter } from "expo-router";
-import * as Clipboard from "expo-clipboard";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import Svg, { Polyline, Line as SvgLine, Circle, Text as SvgText } from "react-native-svg";
+import * as FileSystem from "expo-file-system";
 
 import GradientHeader from "../../Modal/components/ui/GradientHeader";
 import SectionCard from "../../Modal/components/ui/SectionCard";
@@ -30,9 +30,9 @@ import { fetchPlans, type Plan } from "../../lib/service/packageService";
 
 // ✅ ใช้คอมโพเนนต์และคอนสแตนต์ที่แยกไฟล์ไว้
 import { MONTHS_EN, type MonthKey, MONTH_LABELS } from "../../Modal/components/ui/date";
+
 const MONTH_WHEEL_VISIBLE = 5;
-const MONTH_WHEEL_ITEM_HEIGHT = 36;
-const MONTH_WHEEL_HEIGHT = MONTH_WHEEL_VISIBLE * MONTH_WHEEL_ITEM_HEIGHT;
+const MONTH_WHEEL_HEIGHT = MONTH_WHEEL_VISIBLE * 36;
 
 /** ───────────────────── Utilities ───────────────────── */
 function toThDate(iso?: string) {
@@ -173,20 +173,32 @@ export default function Report() {
   const successPct = totalAll ? (totalValid / totalAll) * 100 : 0;
   const failPct    = totalAll ? (totalInvalid / totalAll) * 100 : 0;
 
-  const onExportCsv = async () => {
+  const onExportXlsx = async () => {
     try {
-      const cols = ['id','created_date','amount','status'];
-      const header = cols.join(',');
-      const dataLines = (tableRows as any[]).map((r) => [
-        r?.id ?? '',
-        String(r?.created_date || '').slice(0,10),
-        r?.amount ?? '',
-        r?.status ?? '',
-      ].join(','));
-      await Clipboard.setStringAsync([header, ...dataLines].join('\n'));
-      Alert.alert('ส่งออกสำเร็จ', 'คัดลอก CSV ไปที่คลิปบอร์ดแล้ว');
+      const rowsForSheet: (string | number | null)[][] = [
+        ["ID", "วันที่", "ยอดเงิน", "สถานะ"],
+        ...((tableRows as any[]) ?? []).map((r) => {
+          const rawAmount = typeof r?.amount === "number" ? r?.amount : Number(r?.amount);
+          const amountCell = Number.isFinite(rawAmount) ? rawAmount : "";
+          return [
+            r?.id ?? "",
+            String(r?.created_date ?? "").slice(0, 10),
+            amountCell,
+            r?.status ?? "",
+          ];
+        }),
+      ];
+      const workbookBytes = createXlsxArchive(rowsForSheet);
+      const base64 = toBase64(workbookBytes);
+      const targetDir = FileSystem.documentDirectory ?? FileSystem.cacheDirectory;
+      if (!targetDir) throw new Error("ไม่พบโฟลเดอร์สำหรับบันทึกไฟล์บนอุปกรณ์นี้");
+      const fileName = `report-${new Date().toISOString().replace(/[-:]/g, "").replace(/\..+$/, "")}.xlsx`;
+      const fileUri = `${targetDir}${fileName}`;
+      await FileSystem.writeAsStringAsync(fileUri, base64, { encoding: FileSystem.EncodingType.Base64 });
+
+      Alert.alert("บันทึกไฟล์สำเร็จ", `ไฟล์ถูกบันทึกไว้ที่:\n${fileUri}`);
     } catch (e: any) {
-      Alert.alert('ส่งออกไม่สำเร็จ', e?.message || 'ไม่สามารถสร้างไฟล์ได้');
+      Alert.alert("สร้างไฟล์ไม่สำเร็จ", e?.message || "เกิดข้อผิดพลาดระหว่างสร้างไฟล์");
     }
   };
 
@@ -283,7 +295,7 @@ export default function Report() {
           </Text>
           <Text style={{ fontSize:36, fontWeight:"800", textAlign:"center" }}>{totalAll}</Text>
           <View style={{ marginTop: 10 }}>
-            <PrimaryButton title="ดาวน์โหลดไฟล์" onPress={onExportCsv} />
+            <PrimaryButton title="ดาวน์โหลดไฟล์ (.xlsx)" onPress={onExportXlsx} />
           </View>
         </SectionCard>
 
@@ -501,6 +513,283 @@ function shortRange(aISO: string, bISO: string) {
     catch { return iso; }
   };
   return `${fmt(aISO)} - ${fmt(bISO)}`;
+}
+
+const CRC_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) {
+      c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    }
+    table[n] = c >>> 0;
+  }
+  return table;
+})();
+
+function createXlsxArchive(rows: (string | number | null)[][]): Uint8Array {
+  const safeRows = rows.length ? rows : [[""]];
+  const nowIso = new Date().toISOString();
+  const entries = [
+    { path: "[Content_Types].xml", data: encodeUtf8(buildContentTypesXml()) },
+    { path: "_rels/.rels", data: encodeUtf8(buildRootRelsXml()) },
+    { path: "docProps/app.xml", data: encodeUtf8(buildAppPropsXml()) },
+    { path: "docProps/core.xml", data: encodeUtf8(buildCorePropsXml(nowIso)) },
+    { path: "xl/workbook.xml", data: encodeUtf8(buildWorkbookXml()) },
+    { path: "xl/_rels/workbook.xml.rels", data: encodeUtf8(buildWorkbookRelsXml()) },
+    { path: "xl/styles.xml", data: encodeUtf8(buildStylesXml()) },
+    { path: "xl/worksheets/sheet1.xml", data: encodeUtf8(buildSheetXml(safeRows)) },
+  ];
+  return createZip(entries);
+}
+
+function buildContentTypesXml(): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>\n` +
+    `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">\n` +
+    `  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>\n` +
+    `  <Default Extension="xml" ContentType="application/xml"/>\n` +
+    `  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>\n` +
+    `  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>\n` +
+    `  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>\n` +
+    `  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>\n` +
+    `  <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>\n` +
+    `</Types>`;
+}
+
+function buildRootRelsXml(): string {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n` +
+    `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n` +
+    `  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>\n` +
+    `  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>\n` +
+    `  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>\n` +
+    `</Relationships>`;
+}
+
+function buildAppPropsXml(): string {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n` +
+    `<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">\n` +
+    `  <Application>Sure Sure Mobile</Application>\n` +
+    `</Properties>`;
+}
+
+function buildCorePropsXml(createdIso: string): string {
+  const iso = createdIso.replace(/\.\d+Z$/, "Z");
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n` +
+    `<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">\n` +
+    `  <dc:creator>Sure Sure Mobile</dc:creator>\n` +
+    `  <cp:lastModifiedBy>Sure Sure Mobile</cp:lastModifiedBy>\n` +
+    `  <dcterms:created xsi:type="dcterms:W3CDTF">${iso}</dcterms:created>\n` +
+    `  <dcterms:modified xsi:type="dcterms:W3CDTF">${iso}</dcterms:modified>\n` +
+    `</cp:coreProperties>`;
+}
+
+function buildWorkbookXml(): string {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n` +
+    `<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">\n` +
+    `  <sheets>\n` +
+    `    <sheet name="Report" sheetId="1" r:id="rId1"/>\n` +
+    `  </sheets>\n` +
+    `</workbook>`;
+}
+
+function buildWorkbookRelsXml(): string {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n` +
+    `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n` +
+    `  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>\n` +
+    `  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>\n` +
+    `</Relationships>`;
+}
+
+function buildStylesXml(): string {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n` +
+    `<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">\n` +
+    `  <fonts count="1"><font><sz val="11"/><color theme="1"/><name val="Calibri"/><family val="2"/></font></fonts>\n` +
+    `  <fills count="1"><fill><patternFill patternType="none"/></fill></fills>\n` +
+    `  <borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>\n` +
+    `  <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>\n` +
+    `  <cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs>\n` +
+    `</styleSheet>`;
+}
+
+function buildSheetXml(rows: (string | number | null)[][]): string {
+  const xmlRows = rows.map((row, rowIdx) => {
+    const excelRow = rowIdx + 1;
+    const cells = row.map((value, colIdx) => {
+      const ref = `${columnLetter(colIdx)}${excelRow}`;
+      if (value === null || value === undefined || value === "") {
+        return `<c r="${ref}"/>`;
+      }
+      if (typeof value === "number" && Number.isFinite(value)) {
+        return `<c r="${ref}"><v>${value}</v></c>`;
+      }
+      const text = escapeXml(String(value));
+      return `<c r="${ref}" t="inlineStr"><is><t>${text}</t></is></c>`;
+    }).join("");
+    return `<row r="${excelRow}">${cells}</row>`;
+  }).join("");
+
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n` +
+    `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">\n` +
+    `  <sheetData>${xmlRows}</sheetData>\n` +
+    `</worksheet>`;
+}
+
+function columnLetter(index: number): string {
+  let n = index;
+  let letters = "";
+  while (n >= 0) {
+    letters = String.fromCharCode((n % 26) + 65) + letters;
+    n = Math.floor(n / 26) - 1;
+  }
+  return letters;
+}
+
+function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function encodeUtf8(value: string): Uint8Array {
+  const TextEncoderCtor = (globalThis as any).TextEncoder as undefined | { new (): { encode(input: string): Uint8Array } };
+  if (TextEncoderCtor) {
+    return new TextEncoderCtor().encode(value);
+  }
+  const out: number[] = [];
+  for (let i = 0; i < value.length; i++) {
+    let code = value.charCodeAt(i);
+    if (code < 0x80) {
+      out.push(code);
+    } else if (code < 0x800) {
+      out.push(0xc0 | (code >> 6));
+      out.push(0x80 | (code & 0x3f));
+    } else if (code >= 0xd800 && code <= 0xdbff) {
+      i++;
+      const next = value.charCodeAt(i);
+      const cp = ((code - 0xd800) << 10) + (next - 0xdc00) + 0x10000;
+      out.push(0xf0 | (cp >> 18));
+      out.push(0x80 | ((cp >> 12) & 0x3f));
+      out.push(0x80 | ((cp >> 6) & 0x3f));
+      out.push(0x80 | (cp & 0x3f));
+    } else {
+      out.push(0xe0 | (code >> 12));
+      out.push(0x80 | ((code >> 6) & 0x3f));
+      out.push(0x80 | (code & 0x3f));
+    }
+  }
+  return Uint8Array.from(out);
+}
+
+function createZip(entries: { path: string; data: Uint8Array }[]): Uint8Array {
+  const localParts: Uint8Array[] = [];
+  const centralParts: Uint8Array[] = [];
+  let offset = 0;
+
+  entries.forEach(({ path, data }) => {
+    const nameBytes = encodeUtf8(path);
+    const crc = crc32(data);
+    const size = data.length;
+
+    const local = new Uint8Array(30 + nameBytes.length + size);
+    const localView = new DataView(local.buffer);
+    localView.setUint32(0, 0x04034b50, true);
+    localView.setUint16(4, 20, true);
+    localView.setUint16(6, 0, true);
+    localView.setUint16(8, 0, true);
+    localView.setUint16(10, 0, true);
+    localView.setUint16(12, 0, true);
+    localView.setUint32(14, crc, true);
+    localView.setUint32(18, size, true);
+    localView.setUint32(22, size, true);
+    localView.setUint16(26, nameBytes.length, true);
+    localView.setUint16(28, 0, true);
+    local.set(nameBytes, 30);
+    local.set(data, 30 + nameBytes.length);
+    localParts.push(local);
+
+    const central = new Uint8Array(46 + nameBytes.length);
+    const centralView = new DataView(central.buffer);
+    centralView.setUint32(0, 0x02014b50, true);
+    centralView.setUint16(4, 20, true);
+    centralView.setUint16(6, 20, true);
+    centralView.setUint16(8, 0, true);
+    centralView.setUint16(10, 0, true);
+    centralView.setUint16(12, 0, true);
+    centralView.setUint16(14, 0, true);
+    centralView.setUint32(16, crc, true);
+    centralView.setUint32(20, size, true);
+    centralView.setUint32(24, size, true);
+    centralView.setUint16(28, nameBytes.length, true);
+    centralView.setUint16(30, 0, true);
+    centralView.setUint16(32, 0, true);
+    centralView.setUint16(34, 0, true);
+    centralView.setUint16(36, 0, true);
+    centralView.setUint32(38, 0, true);
+    centralView.setUint32(42, offset, true);
+    central.set(nameBytes, 46);
+    centralParts.push(central);
+
+    offset += local.length;
+  });
+
+  const centralSize = centralParts.reduce((sum, arr) => sum + arr.length, 0);
+  const end = new Uint8Array(22);
+  const endView = new DataView(end.buffer);
+  endView.setUint32(0, 0x06054b50, true);
+  endView.setUint16(4, 0, true);
+  endView.setUint16(6, 0, true);
+  endView.setUint16(8, entries.length, true);
+  endView.setUint16(10, entries.length, true);
+  endView.setUint32(12, centralSize, true);
+  endView.setUint32(16, offset, true);
+  endView.setUint16(20, 0, true);
+
+  return concatUint8Arrays([...localParts, ...centralParts, end]);
+}
+
+function crc32(bytes: Uint8Array): number {
+  let crc = 0xffffffff;
+  for (let i = 0; i < bytes.length; i++) {
+    crc = CRC_TABLE[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function concatUint8Arrays(arrays: Uint8Array[]): Uint8Array {
+  const total = arrays.reduce((sum, arr) => sum + arr.length, 0);
+  const out = new Uint8Array(total);
+  let offset = 0;
+  arrays.forEach((arr) => {
+    out.set(arr, offset);
+    offset += arr.length;
+  });
+  return out;
+}
+
+function toBase64(bytes: Uint8Array): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  let output = "";
+  let i = 0;
+  for (; i + 2 < bytes.length; i += 3) {
+    const triplet = (bytes[i] << 16) | (bytes[i + 1] << 8) | bytes[i + 2];
+    output += chars[(triplet >> 18) & 63];
+    output += chars[(triplet >> 12) & 63];
+    output += chars[(triplet >> 6) & 63];
+    output += chars[triplet & 63];
+  }
+  if (i < bytes.length) {
+    const byte1 = bytes[i];
+    const byte2 = i + 1 < bytes.length ? bytes[i + 1] : 0;
+    const triplet = (byte1 << 16) | (byte2 << 8);
+    output += chars[(triplet >> 18) & 63];
+    output += chars[(triplet >> 12) & 63];
+    output += i + 1 < bytes.length ? chars[(triplet >> 6) & 63] : "=";
+    output += "=";
+  }
+  return output;
 }
 
 /** ───────────────────── Styles ───────────────────── */

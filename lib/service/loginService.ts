@@ -35,7 +35,9 @@ export type RegisterRequest = {
   password: string;
   email?: string;
   name_th?: string;
+  name_en?: string;
   phone?: string;
+  user_type?: string;
   // เพิ่มฟิลด์ตาม model.SureSureUser ที่จำเป็น
 };
 
@@ -102,7 +104,11 @@ export async function login(req: LoginRequest, opts?: { debug?: boolean }): Prom
 
 /** Register: POST /api/v1/register */
 export async function register(req: RegisterRequest, opts?: { debug?: boolean }): Promise<StoredAuth> {
-  const res = await httpPost<ApiResponse<any>>("/register", req, { debug: !!opts?.debug });
+  const payload = {
+    ...req,
+    user_type: req.user_type ?? "merchant-register",
+  };
+  const res = await httpPost<ApiResponse<any>>("/register", payload, { debug: !!opts?.debug });
   const data = res?.data ?? res;
   const auth = normalizeLoginResult(data);
   await setStoredAuth(auth);

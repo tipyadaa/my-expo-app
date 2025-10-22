@@ -25,7 +25,6 @@ import { logout } from "../../lib/authService";
 import { fetchPlans, type Plan } from "../../lib/service/packageService";
 import CardProfile from "../../Modal/components/ui/CardProfile";
 
-// ✅ ใช้ service จริง
 import { updateMyStoreInfo } from "../../lib/service/profileService";
 import { getFirstRoom } from "../../lib/service/roomService";
 
@@ -44,11 +43,9 @@ export default function ProfileScreen() {
   const tokenToCopy = qrToken || fallbackToken;
   const tokenForDisplay = tokenToCopy || "-";
 
-  // ---------- ชื่อผู้ใช้ ----------
   const displayName =
     me?.name_th || me?.name_en || me?.store_name || me?.username || "User";
 
-  // ---------- โหลดรายการแพ็กเกจ ----------
   const [plans, setPlans] = React.useState<Plan[]>([]);
   const [planMeta, setPlanMeta] = React.useState<{
     name: string;
@@ -78,7 +75,6 @@ export default function ProfileScreen() {
     });
   }, [me, plans]);
 
-  // ---------- วันหมดอายุ ----------
   const expireText = React.useMemo(() => {
     if (!me) return "-";
     const startISO = me.package_change_date || me.bill_date || me.created_date || "";
@@ -87,7 +83,6 @@ export default function ProfileScreen() {
     return formatThaiDate(endISO);
   }, [me, planMeta?.days]);
 
-  // ---------- รีเซ็ตการใช้งานช่วงแรก ----------
   const minutesSinceChange = React.useMemo(() => {
     if (!me?.package_change_date) return Infinity;
     const t = new Date(me.package_change_date).getTime();
@@ -102,18 +97,18 @@ export default function ProfileScreen() {
   const handleLogout = () => {
     Alert.alert("ออกจากระบบ", "คุณต้องการออกจากระบบใช่หรือไม่?", [
       { text: "ยกเลิก", style: "cancel" },
-          {
-            text: "ออกจากระบบ",
-            style: "destructive",
-            onPress: async () => {
-              try {
-                await logout();
-                queryClient.clear();
-              } finally {
-                router.replace("/appLogin");
-              }
-            },
-          },
+      {
+        text: "ออกจากระบบ",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await logout();
+            queryClient.clear();
+          } finally {
+            router.replace("/appLogin");
+          }
+        },
+      },
     ]);
   };
 
@@ -141,7 +136,6 @@ export default function ProfileScreen() {
       </View>
     );
 
-  // แบ่ง token เป็น 1–2 แถวเหมือนภาพ (ถ้ายาว)
   const tokenChunks =
     typeof tokenForDisplay === "string" && tokenForDisplay !== "-"
       ? tokenForDisplay.match(/.{1,28}/g) ?? [tokenForDisplay]
@@ -149,7 +143,6 @@ export default function ProfileScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: "#F6F8FB" }}>
-      {/* Header */}
       <GradientHeader
         right={
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
@@ -174,7 +167,6 @@ export default function ProfileScreen() {
                 source={{ uri: me.picture }}
                 style={styles.avatarImage}
                 resizeMode="cover"
-                onError={(e) => console.warn("⚠️ โหลดรูปไม่สำเร็จ:", e.nativeEvent.error)}
               />
             ) : (
               <View style={styles.avatarPlaceholder}>
@@ -221,9 +213,11 @@ export default function ProfileScreen() {
               <Text style={{ color: "#475569" }}>วันหมดอายุ : {expireText}</Text>
             </View>
 
-            {/* ปุ่มอัปแพ็กเกจ แบบไล่เฉด #014BFF → #01C3AF */}
-            <TouchableOpacity activeOpacity={0.9} style={{ marginTop: 12, borderRadius: 10, overflow: "hidden" }}
-              onPress={() => router.push("/(tabs)/packageUp")}>
+            <TouchableOpacity
+              activeOpacity={0.9}
+              style={{ marginTop: 12, borderRadius: 10, overflow: "hidden" }}
+              onPress={() => router.push("/(tabs)/packageUp")}
+            >
               <LinearGradient
                 colors={["#014BFF", "#01C3AF"]}
                 start={{ x: 0, y: 0 }}
@@ -235,11 +229,15 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* ข้อมูลร้านค้า (มีไอคอนแก้ไขที่หัวการ์ดใน component) */}
+          {/* ข้อมูลร้านค้า */}
           <CardProfile
             storeName={me?.store_name}
             storePhone={me?.store_phone || me?.phone}
             storeEmail={me?.store_email || me?.email}
+            // รองรับทั้ง store_address และ address จาก backend เดิม
+            storeAddress={me?.store_address || me?.address || ""}
+            // รองรับทั้ง store_type และ store_category_type จาก backend เดิม
+            storeType={me?.store_type || (me as any)?.store_category_type || ""}
             onSaveRequest={updateMyStoreInfo}
             onSaved={async () => {
               await queryClient.invalidateQueries({ queryKey: ["myProfile"] });
@@ -250,7 +248,6 @@ export default function ProfileScreen() {
           {/* API Key */}
           <View style={[styles.card, styles.shadowSm]}>
             <Text style={styles.sectionTitle}>API Key</Text>
-
             <View style={{ gap: 8, marginTop: 6 }}>
               {tokenChunks.map((chunk, idx) => (
                 <View key={idx} style={styles.apiChunk}>
@@ -266,7 +263,6 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Logout */}
           <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
             <Text style={styles.logoutText}>ออกจากระบบ</Text>
           </TouchableOpacity>
@@ -331,8 +327,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   h1: { fontSize: 18, fontWeight: "800", marginBottom: 10, marginTop: 20 },
-
-  // avatar
   avatarWrap: { alignItems: "center", marginBottom: 12 },
   avatarImage: {
     width: 88,
@@ -349,8 +343,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
-  // card common
   card: {
     backgroundColor: "#FFFFFF",
     borderRadius: 14,
@@ -366,8 +358,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     elevation: 3,
   },
-
-  // inputs mock
   label: { fontWeight: "700", color: "#1E293B", fontSize: 14 },
   inputMock: {
     backgroundColor: "#F8FAFC",
@@ -378,7 +368,6 @@ const styles = StyleSheet.create({
   },
   inputPad: { justifyContent: "center", paddingHorizontal: 10 },
   inputText: { color: "#0F172A" },
-
   sectionTitle: { fontWeight: "800", fontSize: 15, color: "#0F172A" },
   rowBetween: {
     flexDirection: "row",
@@ -388,8 +377,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", marginTop: 6, gap: 6 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#0A57FF" },
   packageLabel: { color: "#0A57FF", fontWeight: "700" },
-
-  // API key
   apiChunk: {
     backgroundColor: "#F8FAFC",
     borderRadius: 10,
@@ -398,10 +385,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 12,
   },
-  apiChunkText: {
-    fontSize: 12,
-    color: "#0F172A",
-  },
+  apiChunkText: { fontSize: 12, color: "#0F172A" },
   copyBtn: {
     marginTop: 10,
     backgroundColor: "#014BFF",
@@ -410,8 +394,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 10,
   },
-
-  // primary gradient button
   primaryBtn: {
     height: 42,
     alignItems: "center",
@@ -419,8 +401,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   primaryBtnText: { color: "#FFFFFF", fontWeight: "800" },
-
-  // logout
   logoutBtn: {
     marginTop: 8,
     backgroundColor: "#EF4444",

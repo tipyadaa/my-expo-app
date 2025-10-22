@@ -1,36 +1,40 @@
-// app/auth/register.tsx
 import * as React from "react";
 import {
-  View,
-  Text,
-  TextInput,
-  Pressable,
-  StyleSheet,
-  SafeAreaView,
-  ScrollView,
   Alert,
   Platform,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useRegisterMutation } from "../../../lib/service/loginService";
 
-export default function RegisterScreen() {
+export default function PageRegister() {
   const router = useRouter();
+  const { mutateAsync: doRegister, isPending } = useRegisterMutation();
 
-  const [fullName, setFullName] = React.useState("");
+  const [username, setUsername] = React.useState("");
+  const [nameTh, setNameTh] = React.useState("");
+  const [nameEn, setNameEn] = React.useState("");
   const [phone, setPhone] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [confirm, setConfirm] = React.useState("");
-  const [loading, setLoading] = React.useState(false);
 
   const validate = () => {
-    if (!fullName || !phone || !email || !password || !confirm) {
+    if (!username || !nameTh || !phone || !email || !password || !confirm) {
       Alert.alert("กรอกข้อมูลไม่ครบ", "กรุณากรอกข้อมูลให้ครบทุกช่อง");
       return false;
     }
-    if (!/^\d{9,10}$/.test(phone.replace(/\D/g, ""))) {
-      Alert.alert("เบอร์โทรไม่ถูกต้อง", "กรุณากรอกตัวเลข 9–10 หลัก");
+    const digits = phone.replace(/\D/g, "");
+    if (!/^\d{9,10}$/.test(digits)) {
+      Alert.alert("เบอร์โทรไม่ถูกต้อง", "กรุณากรอกตัวเลข 9-10 หลัก");
       return false;
     }
     const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim().toLowerCase());
@@ -39,11 +43,11 @@ export default function RegisterScreen() {
       return false;
     }
     if (password.length < 6) {
-      Alert.alert("รหัสผ่านสั้นเกินไป", "อย่างน้อย 6 ตัวอักษร");
+      Alert.alert("รหัสผ่านสั้นเกินไป", "กรุณาตั้งรหัสผ่านอย่างน้อย 6 ตัวอักษร");
       return false;
     }
     if (password !== confirm) {
-      Alert.alert("รหัสผ่านไม่ตรงกัน", "กรุณากรอกให้ตรงกันทั้งสองช่อง");
+      Alert.alert("รหัสผ่านไม่ตรงกัน", "กรุณากรอกรหัสผ่านให้ตรงกันทั้งสองช่อง");
       return false;
     }
     return true;
@@ -52,12 +56,23 @@ export default function RegisterScreen() {
   const onSubmit = async () => {
     if (!validate()) return;
     try {
-      setLoading(true);
-      Alert.alert("สมัครสมาชิกสำเร็จ", "เข้าสู่ระบบเพื่อเริ่มใช้งาน", [
-        { text: "ตกลง", onPress: () => router.replace("/login") },
-      ]);
-    } finally {
-      setLoading(false);
+      const emailNormalized = email.trim().toLowerCase();
+      const phoneDigits = phone.replace(/\D/g, "");
+      await doRegister({
+        username: username.trim(),
+        password,
+        email: emailNormalized,
+        phone: phoneDigits,
+        name_th: nameTh.trim(),
+        name_en: nameEn.trim() || undefined,
+        user_type: "merchant-register",
+      });
+      router.replace("/login/register/pageRegisterStore");
+    } catch (err: any) {
+      Alert.alert(
+        "สมัครสมาชิกไม่สำเร็จ",
+        err?.message ?? "ไม่สามารถสมัครสมาชิกได้ กรุณาลองใหม่อีกครั้ง"
+      );
     }
   };
 
@@ -69,24 +84,51 @@ export default function RegisterScreen() {
       style={styles.bg}
     >
       <SafeAreaView style={styles.safe}>
-        {/* โลโก้ตรงกลางด้านบน */}
+        <Pressable
+          onPress={() => router.replace("/login/register/pageLogin")}
+          style={styles.closeBtn}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="close" size={22} color="#FFFFFF" />
+        </Pressable>
+
         <View style={styles.logoWrap}>
-          <Text style={styles.logoTop}>Sure</Text>
-          <Text style={styles.logoBottom}>Sure</Text>
+          <Text style={styles.logoText}>Sure</Text>
+          <Text style={[styles.logoText, { marginTop: -2 }]}>Sure</Text>
         </View>
 
-        <ScrollView contentContainerStyle={styles.scroll}>
-          {/* การ์ดฟอร์มสีขาว */}
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+        >
           <View style={styles.card}>
             <Text style={styles.title}>สมัครสมาชิก</Text>
 
-            <View style={{ marginTop: 10 }}>
-              <Label>ชื่อ–นามสกุล</Label>
+            <View style={styles.form}>
+              <Label>ชื่อผู้ใช้</Label>
               <TextInput
                 style={styles.input}
-                placeholder="ชื่อ–นามสกุล"
-                value={fullName}
-                onChangeText={setFullName}
+                placeholder="ชื่อผู้ใช้"
+                autoCapitalize="none"
+                value={username}
+                onChangeText={setUsername}
+              />
+
+              <Label>ชื่อ-นามสกุล</Label>
+              <TextInput
+                style={styles.input}
+                placeholder="ชื่อ-นามสกุล"
+                value={nameTh}
+                onChangeText={setNameTh}
+              />
+
+              <Label>ชื่อ-นามสกุล ภาษาอังกฤษ</Label>
+              <TextInput
+                style={styles.input}
+                placeholder="ชื่อ-นามสกุล ภาษาอังกฤษ"
+                value={nameEn}
+                onChangeText={setNameEn}
+                autoCapitalize="words"
               />
 
               <Label>เบอร์โทร</Label>
@@ -102,7 +144,7 @@ export default function RegisterScreen() {
               <Label>Email</Label>
               <TextInput
                 style={styles.input}
-                placeholder="อีเมล"
+                placeholder="Email"
                 keyboardType="email-address"
                 autoCapitalize="none"
                 value={email}
@@ -129,12 +171,12 @@ export default function RegisterScreen() {
             </View>
 
             <Pressable
-              style={[styles.submitBtn, loading && { opacity: 0.7 }]}
+              style={[styles.submitBtn, isPending && styles.disabledBtn]}
               onPress={onSubmit}
-              disabled={loading}
+              disabled={isPending}
             >
               <Text style={styles.submitText}>
-                {loading ? "กำลังสมัคร..." : "สมัครสมาชิก"}
+                {isPending ? "กำลังสมัครสมาชิก..." : "สมัครสมาชิก"}
               </Text>
             </Pressable>
           </View>
@@ -151,43 +193,32 @@ function Label({ children }: { children: React.ReactNode }) {
 const styles = StyleSheet.create({
   bg: { flex: 1 },
   safe: { flex: 1 },
-
-  /* โลโก้ตรงกลาง */
   logoWrap: {
     alignItems: "center",
     justifyContent: "center",
-    paddingTop: 60, // ✅ เพิ่มระยะจากขอบบน
-    paddingBottom:16
+    paddingTop: 56,
+    paddingBottom: 12,
   },
-  logoTop: {
+  logoText: {
     color: "#FFFFFF",
     fontSize: 32,
     fontWeight: "900",
-    lineHeight: 28,
   },
-  logoBottom: {
-    color: "#FFFFFF",
-    fontSize: 32,
-    fontWeight: "900",
-    lineHeight: 28,
-    marginTop: -2,
-  },
-
   scroll: {
-    paddingHorizontal: 16,
-    paddingBottom: 24,
+    paddingHorizontal: 20,
+    paddingBottom: 32,
     alignItems: "center",
   },
-
   card: {
     width: "100%",
     maxWidth: 360,
     backgroundColor: "#FFFFFF",
-    borderRadius: 14,
-    padding: 16,
+    borderRadius: 18,
+    paddingVertical: 24,
+    paddingHorizontal: 20,
     ...Platform.select({
       ios: {
-        shadowColor: "#000",
+        shadowColor: "#000000",
         shadowOpacity: 0.08,
         shadowRadius: 14,
         shadowOffset: { width: 0, height: 8 },
@@ -195,13 +226,14 @@ const styles = StyleSheet.create({
       android: { elevation: 4 },
     }),
   },
-
   title: {
-    textAlign: "center",
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: "900",
-    marginBottom: 8,
+    textAlign: "center",
     color: "#0F172A",
+  },
+  form: {
+    marginTop: 18,
   },
   label: {
     marginTop: 10,
@@ -211,20 +243,37 @@ const styles = StyleSheet.create({
   },
   input: {
     height: 44,
-    borderRadius: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
     paddingHorizontal: 12,
     backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
   },
-
   submitBtn: {
-    marginTop: 16,
-    height: 46,
-    borderRadius: 10,
+    marginTop: 24,
+    height: 48,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#0A57FF",
+    backgroundColor: "#0A4BFF",
   },
-  submitText: { color: "#fff", fontWeight: "800", fontSize: 16 },
+  disabledBtn: {
+    opacity: 0.7,
+  },
+  submitText: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+    fontSize: 16,
+  },
+  closeBtn: {
+    position: "absolute",
+    top: 12,
+    right: 16,
+    zIndex: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });

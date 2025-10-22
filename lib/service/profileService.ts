@@ -24,6 +24,10 @@ export type Profile = {
   is_active: number;
   store_name: string;
   store_category_type: string;
+  /** อาจมีจาก backend บางเวอร์ชัน */
+  store_type?: string;
+  /** ที่อยู่ร้านค้า (ถ้า backend ใช้ field นี้) */
+  store_address?: string;
   store_phone: string;
   store_email: string;
   quota_usage: number;
@@ -200,11 +204,22 @@ export type UpdateStoreInput = {
   store_name: string;
   store_phone: string;
   store_email: string;
+  /** เพิ่มเติม: ประเภทของร้านค้า */
+  store_type?: string;
+  /** เพิ่มเติม: ที่อยู่ร้านค้า */
+  store_address?: string;
 };
 export async function updateMyStoreInfo(input: UpdateStoreInput): Promise<void> {
+  // ส่งทั้งคีย์ที่ UI ใช้และคีย์ที่ backend เดิมใช้ เพื่อความเข้ากันได้
   await updateMyProfile({
     store_name: input.store_name,
     store_phone: input.store_phone,
     store_email: input.store_email,
+    // address fields
+    store_address: input.store_address,
+    address: input.store_address, // เผื่อ backend ใช้ address แทน store_address
+    // type fields
+    store_type: input.store_type,
+    store_category_type: input.store_type ?? (undefined as any),
   });
 }
