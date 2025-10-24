@@ -33,6 +33,8 @@ export default function PageRegisterStore() {
   const [storeCategoryLabel, setStoreCategoryLabel] = React.useState("");
   const [storePhone, setStorePhone] = React.useState("");
   const [storeAddress, setStoreAddress] = React.useState("");
+  const [storeWebsite, setStoreWebsite] = React.useState("");
+  const [storeEmail, setStoreEmail] = React.useState("");
   const [categoryModalOpen, setCategoryModalOpen] = React.useState(false);
   const [initialized, setInitialized] = React.useState(false);
 
@@ -44,6 +46,8 @@ export default function PageRegisterStore() {
     setStoreCategoryLabel(rawType);
     setStorePhone(profile.store_phone ?? "");
     setStoreAddress(profile.store_address ?? profile.address ?? "");
+    setStoreWebsite(profile.store_email ?? "");
+    setStoreEmail(profile.website ?? "");
     setInitialized(true);
   }, [profile, initialized]);
 
@@ -65,6 +69,8 @@ export default function PageRegisterStore() {
     const name = storeName.trim();
     const phone = storePhone.trim();
     const address = storeAddress.trim();
+    const website = storeWebsite.trim();
+    const email = storeEmail.trim();
     const category = storeCategory.trim();
 
     if (!name) {
@@ -79,6 +85,8 @@ export default function PageRegisterStore() {
         store_phone: phone || undefined,
         address: address || undefined,
         store_address: address || undefined,
+        store_email: website || undefined,
+        website: email || undefined,
       });
       router.replace("/login/register/pagePackage");
     } catch (err: any) {
@@ -178,7 +186,29 @@ export default function PageRegisterStore() {
                     onChangeText={setStoreAddress}
                   />
 
-                  <Pressable
+                  
+                  <Text style={styles.label}>Store website (optional)</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="https://yourshop.com"
+                    value={storeWebsite}
+                    onChangeText={setStoreWebsite}
+                    keyboardType="url"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+
+                  <Text style={styles.label}>Store email (optional)</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="shop@example.com"
+                    value={storeEmail}
+                    onChangeText={setStoreEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+
+<Pressable
                     style={[styles.submit, (isPending || isLoading) && styles.submitDisabled]}
                     onPress={onSubmit}
                     disabled={isPending}
