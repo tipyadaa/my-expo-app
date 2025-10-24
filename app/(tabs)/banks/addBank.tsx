@@ -312,27 +312,34 @@ export default function AddBank() {
       >
         <Pressable style={styles.backdrop} onPress={() => setBankPickerOpen(false)}>
           <View style={styles.sheet}>
-            {listBank.map((b) => (
-              <Pressable
-                key={b.value}
-                style={styles.optionRow}
-                onPress={() => {
-                  setSelectedBank(b);
-                  setBankPickerOpen(false);
-                }}
-              >
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                  <Image
-                    source={{ uri: b.imageUrl }}
-                    style={{ width: 28, height: 28, borderRadius: 6, backgroundColor: "#f1f5f9" }}
-                  />
-                  <Text style={styles.optionText}>{b.label}</Text>
-                </View>
-                {selectedBank?.value === b.value && (
-                  <Ionicons name="checkmark" size={18} color="#0A57FF" />
-                )}
-              </Pressable>
-            ))}
+            <View style={styles.sheetHandle} />
+            <ScrollView
+              style={styles.sheetScroll}
+              contentContainerStyle={{ paddingBottom: 8 }}
+              showsVerticalScrollIndicator={false}
+            >
+              {listBank.map((b) => (
+                <Pressable
+                  key={b.value}
+                  style={styles.optionRow}
+                  onPress={() => {
+                    setSelectedBank(b);
+                    setBankPickerOpen(false);
+                  }}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                    <Image
+                      source={{ uri: b.imageUrl }}
+                      style={{ width: 28, height: 28, borderRadius: 6, backgroundColor: "#f1f5f9" }}
+                    />
+                    <Text style={styles.optionText}>{b.label}</Text>
+                  </View>
+                  {selectedBank?.value === b.value && (
+                    <Ionicons name="checkmark" size={18} color="#0A57FF" />
+                  )}
+                </Pressable>
+              ))}
+            </ScrollView>
           </View>
         </Pressable>
       </Modal>
@@ -346,28 +353,35 @@ export default function AddBank() {
       >
         <Pressable style={styles.backdrop} onPress={() => setPpTypePickerOpen(false)}>
           <View style={styles.sheet}>
-            {listPromptpay.map(pp => (
-              <Pressable
-                key={pp.value}
-                style={styles.optionRow}
-                onPress={() => {
-                  setSelectedPP(pp);
-                  setPpTypePickerOpen(false);
-                  setPpValue("");
-                }}
-              >
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                  <Image
-                    source={{ uri: pp.imageUrl }}
-                    style={{ width: 28, height: 28, borderRadius: 6, backgroundColor: "#f1f5f9" }}
-                  />
-                  <Text style={styles.optionText}>{pp.label}</Text>
-                </View>
-                {selectedPP.value === pp.value && (
-                  <Ionicons name="checkmark" size={18} color="#0A57FF" />
-                )}
-              </Pressable>
-            ))}
+            <View style={styles.sheetHandle} />
+            <ScrollView
+              style={styles.sheetScroll}
+              contentContainerStyle={{ paddingBottom: 8 }}
+              showsVerticalScrollIndicator={false}
+            >
+              {listPromptpay.map(pp => (
+                <Pressable
+                  key={pp.value}
+                  style={styles.optionRow}
+                  onPress={() => {
+                    setSelectedPP(pp);
+                    setPpTypePickerOpen(false);
+                    setPpValue("");
+                  }}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                    <Image
+                      source={{ uri: pp.imageUrl }}
+                      style={{ width: 28, height: 28, borderRadius: 6, backgroundColor: "#f1f5f9" }}
+                    />
+                    <Text style={styles.optionText}>{pp.label}</Text>
+                  </View>
+                  {selectedPP.value === pp.value && (
+                    <Ionicons name="checkmark" size={18} color="#0A57FF" />
+                  )}
+                </Pressable>
+              ))}
+            </ScrollView>
           </View>
         </Pressable>
       </Modal>
@@ -423,7 +437,23 @@ const styles = StyleSheet.create({
   },
 
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.3)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: "#fff", borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingVertical: 8 },
+  sheet: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingBottom: 8,
+    maxHeight: "70%",
+  },
+  sheetHandle: {
+    alignSelf: "center",
+    width: 48,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#CBD5E1",
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  sheetScroll: { paddingHorizontal: 0 },
 
   optionRow: {
     paddingVertical: 14,
