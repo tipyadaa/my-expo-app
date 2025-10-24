@@ -32,6 +32,7 @@ export default function ScanPay() {
     price?: string | string[];
     quota?: string | string[];
     days?: string | string[];
+    redirect?: string | string[];
   }>();
 
   const pickParam = (value: string | string[] | undefined): string => {
@@ -78,6 +79,9 @@ export default function ScanPay() {
       ? `${daysNumber} ???`
       : daysParam || "-";
 
+  const redirectParam = pickParam(params.redirect);
+  const successRedirect = redirectParam || "/(tabs)/packageUp";
+
   // 10 นาที = 600 วินาที
   const [left, setLeft] = React.useState(600);
 
@@ -97,7 +101,7 @@ export default function ScanPay() {
       setFailOpen(true);
       const t = setTimeout(() => {
         setFailOpen(false);
-        router.replace("/(tabs)/packageUp");
+        router.replace(successRedirect);
       }, 1800);
       return () => clearTimeout(t);
     }
@@ -113,7 +117,7 @@ export default function ScanPay() {
       setSuccessBack((n) => {
         if (n <= 1) {
           clearInterval(id);
-          router.replace("/(tabs)/packageUp");
+          router.replace(successRedirect);
           return 0;
         }
         return n - 1;
@@ -135,7 +139,9 @@ export default function ScanPay() {
   const handleMarkPaid = async () => {
     if (markingPaid) return;
     if (!planIdValid) {
-      queueMicrotask(() => Alert.alert("??????????????????", "???????????????????????????????"))
+      queueMicrotask(() =>
+        Alert.alert("Package information missing", "Please go back and select a package again.")
+      );
       return;
     }
     try {
@@ -147,9 +153,11 @@ export default function ScanPay() {
       });
       setSuccessOpen(true);
     } catch (err: any) {
-      Alert.alert(
-        "อัปเดตแพ็กเกจไม่สำเร็จ",
-        err?.message ?? "เกิดข้อผิดพลาดขณะบันทึกการชำระเงิน"
+      queueMicrotask(() =>
+        Alert.alert(
+          "Unable to update package",
+          err?.message ?? "An error occurred while saving the payment result."
+        )
       );
     } finally {
       setMarkingPaid(false);
@@ -278,7 +286,7 @@ export default function ScanPay() {
 
             <TouchableOpacity
               style={styles.successBtn}
-              onPress={() => router.replace("/(tabs)/packageUp")}
+              onPress={() => router.replace(successRedirect)}
             >
               <Text style={styles.successBtnText}>
                 กลับหน้าแพ็กเกจ ({successBack} วิ)

@@ -80,7 +80,7 @@ export default function PageRegisterStore() {
         address: address || undefined,
         store_address: address || undefined,
       });
-      router.replace("/(tabs)/report");
+      router.replace("/login/register/pagePackage");
     } catch (err: any) {
       Alert.alert("บันทึกข้อมูลไม่สำเร็จ", err?.message ?? "ไม่สามารถบันทึกข้อมูลร้านค้าได้");
     }
