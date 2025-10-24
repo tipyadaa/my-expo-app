@@ -14,6 +14,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useRegisterMutation } from "../../../lib/service/loginService";
+import SureSureLogo from "../../../components/SureSureLogo";
 
 export default function PageRegister() {
   const router = useRouter();
@@ -93,8 +94,7 @@ export default function PageRegister() {
         </Pressable>
 
         <View style={styles.logoWrap}>
-          <Text style={styles.logoText}>Sure</Text>
-          <Text style={[styles.logoText, { marginTop: -2 }]}>Sure</Text>
+          <SureSureLogo style={styles.logo} />
         </View>
 
         <ScrollView
@@ -199,10 +199,9 @@ const styles = StyleSheet.create({
     paddingTop: 56,
     paddingBottom: 12,
   },
-  logoText: {
-    color: "#FFFFFF",
-    fontSize: 32,
-    fontWeight: "900",
+  logo: {
+    width: 180,
+    height: 180,
   },
   scroll: {
     paddingHorizontal: 20,

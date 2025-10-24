@@ -6,12 +6,14 @@ import {
   TouchableOpacity,
   StyleSheet,
   Modal,
-  Pressable,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import GradientHeader from "../../Modal/components/ui/GradientHeader";
+import { updateUserPackage } from "../../lib/service/profileService";
 
 function mmss(totalSec: number) {
   const m = Math.floor(totalSec / 60)
@@ -24,14 +26,69 @@ function mmss(totalSec: number) {
 export default function ScanPay() {
   const router = useRouter();
 
+  const params = useLocalSearchParams<{
+    planId?: string | string[];
+    name?: string | string[];
+    price?: string | string[];
+    quota?: string | string[];
+    days?: string | string[];
+  }>();
+
+  const pickParam = (value: string | string[] | undefined): string => {
+    if (Array.isArray(value)) {
+      return value[0] ?? "";
+    }
+    return value ?? "";
+  };
+
+  const formatNumber = (value: number): string => {
+    try {
+      return value.toLocaleString("th-TH");
+    } catch {
+      return value.toString();
+    }
+  };
+
+  const planNameParam = pickParam(params.name);
+  const planName = planNameParam || "Basic";
+
+  const planIdParam = pickParam(params.planId);
+  const planIdNumber = Number(planIdParam);
+
+  const priceParam = pickParam(params.price);
+  const priceNumber = Number(priceParam);
+  const hasPrice = Number.isFinite(priceNumber) && priceParam !== "";
+  const priceDisplay = hasPrice
+    ? `? ${formatNumber(priceNumber)}`
+    : priceParam
+    ? `? ${priceParam}`
+    : "? 0";
+
+  const quotaParam = pickParam(params.quota);
+  const quotaNumber = Number(quotaParam);
+  const quotaDisplay =
+    Number.isFinite(quotaNumber) && quotaParam !== ""
+      ? `${formatNumber(quotaNumber)} ?????`
+      : quotaParam || "-";
+
+  const daysParam = pickParam(params.days);
+  const daysNumber = Number(daysParam);
+  const daysDisplay =
+    Number.isFinite(daysNumber) && daysParam !== ""
+      ? `${daysNumber} ???`
+      : daysParam || "-";
+
   // 10 นาที = 600 วินาที
   const [left, setLeft] = React.useState(600);
 
   // แจ้งเตือนต่าง ๆ
-  const [saveOk, setSaveOk] = React.useState(false);          // Toast เขียว “บันทึกคิวอาร์โค้ดสำเร็จ”
-  const [failOpen, setFailOpen] = React.useState(false);      // Modal ล้มเหลว
-  const [successOpen, setSuccessOpen] = React.useState(false); // Modal สำเร็จ
-  const [successBack, setSuccessBack] = React.useState(5);    // นับถอยหลัง 5 วิ ในปุ่มกลับ
+  // Toast / modal states
+  const [saveOk, setSaveOk] = React.useState(false);
+  const [failOpen, setFailOpen] = React.useState(false);
+  const [successOpen, setSuccessOpen] = React.useState(false);
+  const [successBack, setSuccessBack] = React.useState(5); // seconds before redirect
+  const [markingPaid, setMarkingPaid] = React.useState(false);
+
 
   // นับถอยหลัง 10 นาที
   React.useEffect(() => {
@@ -65,11 +122,41 @@ export default function ScanPay() {
     return () => clearInterval(id);
   }, [successOpen, router]);
 
+  const planIdValid = Number.isFinite(planIdNumber);
+  const planIdForUpdate = planIdValid ? planIdNumber : 0;
+  const quotaForUpdate = Number.isFinite(quotaNumber) ? quotaNumber : 0;
+  const daysForUpdate = Number.isFinite(daysNumber) && daysNumber > 0 ? daysNumber : 30;
+
   const onSaveQr = () => {
-    // ตรงนี้จำลองเป็น Toast เขียวตามรูป
     setSaveOk(true);
     setTimeout(() => setSaveOk(false), 1400);
   };
+
+  const handleMarkPaid = async () => {
+    if (markingPaid) return;
+    if (!planIdValid) {
+      queueMicrotask(() => Alert.alert("??????????????????", "???????????????????????????????"))
+      return;
+    }
+    try {
+      setMarkingPaid(true);
+      await updateUserPackage({
+        packageId: planIdForUpdate,
+        quotaAll: quotaForUpdate,
+        days: daysForUpdate,
+      });
+      setSuccessOpen(true);
+    } catch (err: any) {
+      Alert.alert(
+        "อัปเดตแพ็กเกจไม่สำเร็จ",
+        err?.message ?? "เกิดข้อผิดพลาดขณะบันทึกการชำระเงิน"
+      );
+    } finally {
+      setMarkingPaid(false);
+    }
+  };
+
+
 
   return (
     <View style={{ flex: 1, backgroundColor: "#F6F8FB" }}>
@@ -103,8 +190,8 @@ export default function ScanPay() {
           </View>
 
           {/* รายละเอียดแพ็กเกจ/ราคา (mock) */}
-          <Text style={styles.meta}>แพ็กเกจ : <Text style={{ fontWeight: "700" }}>Basic</Text></Text>
-          <Text style={styles.meta}>จำนวนเงิน : <Text style={{ fontWeight: "700" }}>225  ฿</Text></Text>
+          <Text style={styles.meta}>แพ็กเกจ : <Text style={{ fontWeight: "700" }}>{planName}</Text></Text>
+          <Text style={styles.meta}>จำนวนเงิน : <Text style={{ fontWeight: "700" }}>{priceDisplay}</Text></Text>
 
           {/* แถบหมดอายุแดง + คำชี้แจง */}
           <View style={styles.expireBox}>
@@ -130,8 +217,19 @@ export default function ScanPay() {
           </LinearGradient>
 
           {/* ลิงก์จำลอง “ชำระเสร็จแล้ว” เพื่อโชว์ modal success */}
-          <TouchableOpacity onPress={() => setSuccessOpen(true)} style={{ marginTop: 10 }}>
-            <Text style={{ color: "#0A57FF", fontWeight: "700" }}>ชำระเสร็จแล้ว</Text>
+          <TouchableOpacity
+            onPress={handleMarkPaid}
+            style={{ marginTop: 10, opacity: markingPaid || !planIdValid ? 0.7 : 1 }}
+            disabled={markingPaid || !planIdValid}
+          >
+            {markingPaid ? (
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center" }}>
+                <ActivityIndicator size="small" color="#0A57FF" />
+                <Text style={{ color: "#0A57FF", fontWeight: "700", marginLeft: 6 }}>กำลังบันทึก...</Text>
+              </View>
+            ) : (
+              <Text style={{ color: "#0A57FF", fontWeight: "700" }}>แจ้งว่าชำระเงินสำเร็จ</Text>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -172,10 +270,10 @@ export default function ScanPay() {
             <Text style={styles.successTitle}>ชำระเงินสำเร็จ</Text>
 
             <View style={{ gap: 6, marginTop: 8 }}>
-              <Row label="แพ็กเกจ:" value="Basic" boldValue />
-              <Row label="ค่าบริการ:" value="฿ 225" />
-              <Row label="จำนวนตรวจสอบ:" value="500 สลิป" boldValue />
-              <Row label="วันหมดอายุ:" value="31/01/2025" boldValue />
+              <Row label="แพ็กเกจ:" value={planName} boldValue />
+              <Row label="ค่าบริการ:" value={priceDisplay} />
+              <Row label="จำนวนตรวจสอบ:" value={quotaDisplay} boldValue />
+              <Row label="วันหมดอายุ:" value={daysDisplay} boldValue />
             </View>
 
             <TouchableOpacity

@@ -11,6 +11,7 @@ import {
   Alert,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import SureSureLogo from "../../../components/SureSureLogo";
 import { useRouter } from "expo-router";
 import { useLoginMutation } from "lib/service/loginService"; // ✅ import service
 
@@ -54,8 +55,7 @@ export default function EmailLoginScreen() {
           <View style={styles.container}>
             {/* โลโก้ */}
             <View style={styles.logoWrap}>
-              <Text style={styles.logoLine}>Sure</Text>
-              <Text style={[styles.logoLine, { marginTop: -4 }]}>Sure</Text>
+              <SureSureLogo style={styles.logo} />
             </View>
 
             {/* หัวข้อ */}
@@ -111,11 +111,9 @@ const styles = StyleSheet.create({
     marginTop: 12,
     marginBottom: 16,
   },
-  logoLine: {
-    color: "#FFFFFF",
-    fontSize: 36,
-    fontWeight: "900",
-    lineHeight: 32,
+  logo: {
+    width: 180,
+    height: 180,
   },
   title: {
     color: "#FFFFFF",

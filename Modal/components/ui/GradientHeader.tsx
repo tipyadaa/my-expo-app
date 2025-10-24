@@ -1,11 +1,12 @@
 import * as React from "react";
 import { LinearGradient } from "expo-linear-gradient";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import SureSureLogo from "../../../components/SureSureLogo";
 import { Link } from "expo-router";
 
-type Props = { 
-  title?: string;          // ข้อความหัวเรื่อง (optional)
-  right?: React.ReactNode; // องค์ประกอบด้านขวา (icon, text, ปุ่ม)
+type Props = {
+  title?: string;          // หัวข้อ (optional)
+  right?: React.ReactNode; // เนื้อหาฝั่งขวา เช่น "Hi, Yada"
 };
 
 export default function GradientHeader({ title, right }: Props) {
@@ -17,21 +18,21 @@ export default function GradientHeader({ title, right }: Props) {
       style={styles.wrap}
     >
       <View style={styles.row}>
-        {/* โลโก้หรือชื่อแอป → กดได้ไปหน้า profile */}
+        {/* โลโก้ฝั่งซ้าย */}
         <Link href="/(tabs)/profile" asChild>
           <TouchableOpacity activeOpacity={0.7}>
-            <Text style={styles.logo}>Sure{"\n"}Sure</Text>
+            <SureSureLogo style={styles.logo} accessibilityLabel="SureSure logo" />
           </TouchableOpacity>
         </Link>
 
-        {/* เว้นพื้นที่ตรงกลาง */}
+        {/* เว้นช่องตรงกลาง */}
         <View style={{ flex: 1 }} />
 
-        {/* เนื้อหาฝั่งขวา (เช่น Hi, Yada, icon) */}
+        {/* ฝั่งขวา เช่น "Hi, Yada" + ไอคอนร้าน */}
         {right}
       </View>
 
-      {/* ถ้ามี Title ให้โชว์ */}
+      {/* ถ้ามี title ให้แสดงด้านล่าง */}
       {title ? <Text style={styles.title}>{title}</Text> : null}
     </LinearGradient>
   );
@@ -39,26 +40,23 @@ export default function GradientHeader({ title, right }: Props) {
 
 const styles = StyleSheet.create({
   wrap: {
-    paddingTop: 56,           // รองรับ safe area
-    paddingHorizontal: 16,
-    paddingBottom: 32,
-    borderBottomLeftRadius: 0,
-    borderBottomRightRadius: 0,
+    paddingTop: 40, // รองรับ safe area
+    paddingHorizontal: 20,
+    paddingBottom: 16,
   },
-  row: { 
-    flexDirection: "row", 
-    alignItems: "flex-start" 
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
   },
-  logo: { 
-    color: "#fff", 
-    fontSize: 18, 
-    fontWeight: "800", 
-    lineHeight: 18 
+  logo: {
+    width: 100, // ขนาดตามภาพ (สามารถปรับได้)
+    height: 80,
+    resizeMode: "contain",
   },
-  title: { 
-    color: "#fff", 
-    fontSize: 20, 
-    fontWeight: "700", 
-    marginTop: 12 
+  title: {
+    color: "#fff",
+    fontSize: 20,
+    fontWeight: "700",
+    marginTop: 10,
   },
 });

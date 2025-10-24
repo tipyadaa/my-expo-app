@@ -8,7 +8,6 @@ import {
   FlatList,
   Modal,
   ActivityIndicator,
-  Alert,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -17,7 +16,6 @@ import { useRouter } from "expo-router";
 import GradientHeader from "../../Modal/components/ui/GradientHeader";
 import { fetchPlans, type Plan } from "../../lib/service/packageService";
 // ✅ ใช้จาก profileService (มี updateUserPackage)
-import { updateUserPackage } from "../../lib/service/profileService";
 
 export default function PackageScreen() {
   const router = useRouter();
@@ -29,7 +27,6 @@ export default function PackageScreen() {
   const [confirmVisible, setConfirmVisible] = React.useState(false);
   const [selectedPlan, setSelectedPlan] = React.useState<Plan | null>(null);
 
-  const [updating, setUpdating] = React.useState(false); // สถานะตอนอัปเดตแพ็กเกจ
 
   React.useEffect(() => {
     (async () => {
@@ -53,29 +50,20 @@ export default function PackageScreen() {
   };
 
   // ✅ อัปเดตแพ็กเกจจริงบน backend แล้วค่อยปิด modal
-  const confirmAndGo = async () => {
+  const confirmAndGo = () => {
     if (!selectedPlan) return;
-    try {
-      setUpdating(true);
-      await updateUserPackage({
-        // ❗ใส่วงเล็บป้องกัน error การผสม ?? และ ||
-        packageId: (selectedPlan.id_num ?? Number(selectedPlan.id)) || 0,
-        quotaAll: selectedPlan.quota,
-        days: selectedPlan.days,
-      });
-      setConfirmVisible(false);
-      Alert.alert("สำเร็จ", "อัปเดตแพ็กเกจเรียบร้อยแล้ว", [
-        { text: "ตกลง", onPress: () => router.back() },
-      ]);
-    } catch (err: any) {
-      console.error("updateUserPackage error:", err);
-      Alert.alert(
-        "อัปเดตไม่สำเร็จ",
-        err?.message || "กรุณาลองใหม่อีกครั้งหรือติดต่อผู้ดูแลระบบ"
-      );
-    } finally {
-      setUpdating(false);
-    }
+    const planId = selectedPlan.id;
+    setConfirmVisible(false);
+    router.push({
+      pathname: "/modals/scanpay",
+      params: {
+        planId: String(planId ?? ""),
+        name: selectedPlan.name,
+        price: selectedPlan.price.toString(),
+        quota: selectedPlan.quota.toString(),
+        days: selectedPlan.days.toString(),
+      },
+    });
   };
 
   const renderItem = ({ item }: { item: Plan }) => {
@@ -172,24 +160,17 @@ export default function PackageScreen() {
             </Text>
             <Text style={styles.modalNote}>**จำนวนตรวจสอบสลิปที่คุณเหลืออยู่จะโดนรีเซ็ตใหม่</Text>
 
-            {updating ? (
-              <View style={{ marginTop: 12, alignItems: "center" }}>
-                <ActivityIndicator size="small" color="#0A57FF" />
-                <Text style={{ marginTop: 6, color: "#64748B" }}>กำลังอัปเดตแพ็กเกจ...</Text>
-              </View>
-            ) : (
-              <View style={styles.modalRow}>
-                <TouchableOpacity
-                  style={styles.cancelBtn}
-                  onPress={() => setConfirmVisible(false)}
-                >
-                  <Text style={styles.cancelText}>ไม่เปลี่ยนแพ็กเกจ</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.confirmBtn} onPress={confirmAndGo}>
-                  <Text style={styles.confirmText}>เปลี่ยนแพ็กเกจ</Text>
-                </TouchableOpacity>
-              </View>
-            )}
+            <View style={styles.modalRow}>
+              <TouchableOpacity
+                style={styles.cancelBtn}
+                onPress={() => setConfirmVisible(false)}
+              >
+                <Text style={styles.cancelText}>ไม่เปลี่ยนแพ็กเกจ</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.confirmBtn} onPress={confirmAndGo}>
+                <Text style={styles.confirmText}>เปลี่ยนแพ็กเกจ</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>

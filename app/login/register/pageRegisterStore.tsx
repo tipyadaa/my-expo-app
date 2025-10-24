@@ -20,6 +20,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useMyProfile, useUpdateMyProfile, useCategories } from "../../../lib/hooks/useProfile";
 import type { Category } from "../../../lib/service/profileService";
+import SureSureLogo from "../../../components/SureSureLogo";
 
 export default function PageRegisterStore() {
   const router = useRouter();
@@ -122,8 +123,7 @@ export default function PageRegisterStore() {
             keyboardShouldPersistTaps="handled"
           >
             <View style={styles.logoWrap}>
-              <Text style={styles.logoText}>Sure</Text>
-              <Text style={[styles.logoText, { marginTop: -2 }]}>Sure</Text>
+              <SureSureLogo style={styles.logo} />
             </View>
 
             <View style={styles.card}>
@@ -244,10 +244,9 @@ const styles = StyleSheet.create({
     marginTop: 40,
     marginBottom: 20,
   },
-  logoText: {
-    color: "#FFFFFF",
-    fontSize: 32,
-    fontWeight: "900",
+  logo: {
+    width: 180,
+    height: 180,
   },
   card: {
     width: "100%",

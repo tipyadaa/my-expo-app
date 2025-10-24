@@ -1,15 +1,9 @@
 // app/appLogin.tsx
 import * as React from "react";
-import {
-  View,
-  Text,
-  Pressable,
-  StyleSheet,
-  SafeAreaView,
-  StatusBar,
-} from "react-native";
+import { View, Text, Pressable, StyleSheet, SafeAreaView, StatusBar } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
+import SureSureLogo from "../components/SureSureLogo";
 
 export default function AppLogin() {
   const router = useRouter();
@@ -39,8 +33,7 @@ export default function AppLogin() {
         <View style={styles.container}>
           {/* โลโก้ข้อความ */}
           <View style={styles.logoWrap}>
-            <Text style={styles.logoTop}>Sure</Text>
-            <Text style={styles.logoBottom}>Sure</Text>
+            <SureSureLogo style={styles.logo} />
           </View>
           <Text style={styles.subtitle}>บริการเช็คสลิปผ่านไลน์</Text>
 
@@ -89,17 +82,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 8,
   },
-  logoTop: {
-    color: "#FFFFFF",
-    fontSize: 48,
-    fontWeight: "900",
-    lineHeight: 44,
-  },
-  logoBottom: {
-    color: "#FFFFFF",
-    fontSize: 48,
-    fontWeight: "900",
-    lineHeight: 44,
+  logo: {
+    width: 220,
+    height: 220,
   },
   subtitle: {
     color: "#EAF4FF",
