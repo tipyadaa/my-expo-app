@@ -52,7 +52,8 @@ export default function AddStore() {
   type LinkedAccount = { id: number; bank: string; number: string; enabled: boolean };
   const [linked, setLinked] = React.useState<LinkedAccount[]>([]);
   React.useEffect(() => {
-    const mapped: LinkedAccount[] = (bankList as BankItem[]).map((b) => ({
+    const arr: BankItem[] = Array.isArray(bankList) ? (bankList as BankItem[]) : [];
+    const mapped: LinkedAccount[] = arr.map((b) => ({
       id: Number(b.id),
       bank: b.name_th || b.name_en || b.bank_code || "ธนาคาร",
       number: String(b.account_no || ''),

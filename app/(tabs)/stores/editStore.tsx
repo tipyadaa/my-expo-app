@@ -67,7 +67,8 @@ export default function EditStore() {
   // map bank list -> linked พร้อมสถานะเลือกจาก current.bankIds
   React.useEffect(() => {
     const selected = new Set((current?.bankIds ?? []).map((n) => Number(n)));
-    const mapped: LinkedAccount[] = (bankList as BankItem[]).map((b) => ({
+    const arr: BankItem[] = Array.isArray(bankList) ? (bankList as BankItem[]) : [];
+    const mapped: LinkedAccount[] = arr.map((b) => ({
       id: Number(b.id),
       bank: b.name_th || b.name_en || b.bank_code || "ธนาคาร",
       number: String(b.account_no || ''),

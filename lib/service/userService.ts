@@ -2,6 +2,7 @@
 import { httpPut, httpGet } from "../http";
 import { getCurrentUserId } from "../authSession";
 
+
 // รูปแบบ user minimal ที่พอสำหรับ client
 export type SureSureUserLite = {
   id: number;
