@@ -71,7 +71,8 @@ export default function PageRegisterStore() {
     const address = storeAddress.trim();
     const website = storeWebsite.trim();
     const email = storeEmail.trim();
-    const category = storeCategory.trim();
+    const categoryCode = storeCategory.trim();
+    const categoryName = storeCategoryLabel.trim();
 
     if (!name) {
       Alert.alert("กรุณากรอกชื่อร้านค้า", "โปรดระบุชื่อร้านค้าของคุณ");
@@ -81,7 +82,7 @@ export default function PageRegisterStore() {
     try {
       await updateMyProfileMutation({
         store_name: name,
-        store_category_type: category || undefined,
+        store_category_type: categoryName || categoryCode || undefined,
         store_phone: phone || undefined,
         address: address || undefined,
         store_address: address || undefined,

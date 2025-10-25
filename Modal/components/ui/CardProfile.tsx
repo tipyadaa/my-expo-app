@@ -1,5 +1,5 @@
 // app/(tabs)/components/CardProfile.tsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -21,6 +21,7 @@ type SavePayload = {
   store_name: string;
   store_phone: string;
   store_email: string;
+  website?: string;
   store_address?: string;
   store_type?: string;
 };
@@ -31,6 +32,7 @@ type Props = {
   storeName?: string | null;
   storePhone?: string | null;
   storeEmail?: string | null;
+  storeWebsite?: string | null;
   /** ใหม่ */
   storeAddress?: string | null;
   storeType?: string | null;
@@ -49,6 +51,7 @@ export default function CardProfile({
   storeName,
   storePhone,
   storeEmail,
+  storeWebsite,
   storeAddress,
   storeType,
   onSaved,
@@ -60,7 +63,8 @@ export default function CardProfile({
   // ฟอร์ม
   const [nameI, setNameI] = useState(storeName || "");
   const [phoneI, setPhoneI] = useState(storePhone || "");
-  const [emailI, setEmailI] = useState(storeEmail || "");
+  const [websiteI, setWebsiteI] = useState(storeEmail || "");
+  const [contactEmailI, setContactEmailI] = useState(storeWebsite || "");
   const [addressI, setAddressI] = useState(storeAddress || "");
   const [typeI, setTypeI] = useState(storeType || "");
   const [typePickerOpen, setTypePickerOpen] = useState(false);
@@ -71,9 +75,41 @@ export default function CardProfile({
   // sync เมื่อ props เปลี่ยน
   useEffect(() => setNameI(storeName || ""), [storeName]);
   useEffect(() => setPhoneI(storePhone || ""), [storePhone]);
-  useEffect(() => setEmailI(storeEmail || ""), [storeEmail]);
+  useEffect(() => setWebsiteI(storeEmail || ""), [storeEmail]);
+  useEffect(() => setContactEmailI(storeWebsite || ""), [storeWebsite]);
   useEffect(() => setAddressI(storeAddress || ""), [storeAddress]);
-  useEffect(() => setTypeI(storeType || ""), [storeType]);
+
+  const resolveCategoryLabel = useCallback(
+    (raw: string) => {
+      const trimmed = raw?.trim();
+      if (!trimmed) return "";
+      const lower = trimmed.toLowerCase();
+      const match = (categories as any[]).find((item) => {
+        if (!item) return false;
+        const options = [
+          item.iso_code,
+          item.category_name_th,
+          item.category_name_en,
+          item.cat_id != null ? String(item.cat_id) : undefined,
+        ];
+        return options.some((val) => val && String(val).trim().toLowerCase() === lower);
+      });
+      if (match) {
+        const th = match.category_name_th ? String(match.category_name_th).trim() : "";
+        const en = match.category_name_en ? String(match.category_name_en).trim() : "";
+        return th || en || trimmed;
+      }
+      return trimmed;
+    },
+    [categories]
+  );
+
+  const storeTypeLabel = useMemo(
+    () => resolveCategoryLabel(storeType || ""),
+    [storeType, resolveCategoryLabel]
+  );
+
+  useEffect(() => setTypeI(storeTypeLabel), [storeTypeLabel]);
 
   // แบนเนอร์แจ้งเตือนในการ์ด
   const [banner, setBanner] = useState<Banner>(null);
@@ -88,10 +124,11 @@ export default function CardProfile({
   const canSave = useMemo(() => {
     const nameOK = nameI.trim().length > 0;
     const phoneOK = /^\d{9,10}$/.test(phoneI.trim());
-    const emailOK = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailI.trim());
-    // address & type ไม่บังคับ แต่ตัด space ออกให้เรียบร้อย
+    const contactEmail = contactEmailI.trim();
+    const emailOK =
+      contactEmail.length === 0 || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail);
     return nameOK && phoneOK && emailOK;
-  }, [nameI, phoneI, emailI]);
+  }, [nameI, phoneI, contactEmailI]);
 
   async function handleSave() {
     if (!canSave) {
@@ -103,7 +140,8 @@ export default function CardProfile({
       const payload: SavePayload = {
         store_name: nameI.trim(),
         store_phone: phoneI.trim(),
-        store_email: emailI.trim(),
+        store_email: websiteI.trim(),
+        website: contactEmailI.trim() || undefined,
         store_address: addressI.trim(),
         store_type: typeI.trim(),
       };
@@ -168,12 +206,15 @@ export default function CardProfile({
         <Text style={[styles.infoLabel, { marginTop: 6 }]}>เบอร์โทรศัพท์</Text>
         <Text style={styles.infoValue}>{storePhone || "-"}</Text>
 
-        <Text style={[styles.infoLabel, { marginTop: 6 }]}>อีเมล</Text>
+        <Text style={[styles.infoLabel, { marginTop: 6 }]}>เว็บไซต์ร้านค้า</Text>
         <Text style={styles.infoValue}>{storeEmail || "-"}</Text>
+
+        <Text style={[styles.infoLabel, { marginTop: 6 }]}>อีเมลร้านค้า</Text>
+        <Text style={styles.infoValue}>{storeWebsite || "-"}</Text>
 
         {/* ใหม่: ประเภท & ที่อยู่ */}
         <Text style={[styles.infoLabel, { marginTop: 6 }]}>ประเภทของร้านค้า</Text>
-        <Text style={styles.infoValue}>{storeType || "-"}</Text>
+        <Text style={styles.infoValue}>{storeTypeLabel || "-"}</Text>
 
         <Text style={[styles.infoLabel, { marginTop: 6 }]}>ที่อยู่ร้านค้า</Text>
         <Text style={styles.infoValue}>{storeAddress || "-"}</Text>
@@ -212,14 +253,26 @@ export default function CardProfile({
                 </View>
 
                 <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>อีเมล</Text>
+                  <Text style={styles.inputLabel}>เว็บไซต์ร้านค้า (ไม่บังคับ)</Text>
                   <TextInput
                     style={styles.input}
-                    value={emailI}
-                    onChangeText={setEmailI}
+                    value={websiteI}
+                    onChangeText={setWebsiteI}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    placeholder="https://yourshop.com"
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>อีเมลร้านค้า (ไม่บังคับ)</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={contactEmailI}
+                    onChangeText={setContactEmailI}
                     keyboardType="email-address"
                     autoCapitalize="none"
-                    placeholder="เช่น admin11111@example.com"
+                    placeholder="shop@example.com"
                   />
                 </View>
 
@@ -296,13 +349,20 @@ export default function CardProfile({
                   data={categories as any[]}
                   keyExtractor={(c: any, idx) => String(c?.cat_id ?? c?.category_name_en ?? idx)}
                   renderItem={({ item }: { item: any }) => {
-                    const label = String(item?.category_name_en ?? "");
-                    const selected = label === typeI;
+                    const label =
+                      (item?.category_name_th && String(item.category_name_th)) ||
+                      (item?.category_name_en && String(item.category_name_en)) ||
+                      (item?.iso_code && String(item.iso_code)) ||
+                      (item?.cat_id != null ? String(item.cat_id) : "");
+                    const normalizedLabel = label.trim().toLowerCase();
+                    const selected =
+                      normalizedLabel.length > 0 &&
+                      normalizedLabel === typeI.trim().toLowerCase();
                     return (
                       <TouchableOpacity
                         style={[styles.optionRow, selected ? styles.optionRowActive : null]}
                         onPress={() => {
-                          setTypeI(label);
+                          setTypeI(label.trim());
                           setTypePickerOpen(false);
                         }}
                       >

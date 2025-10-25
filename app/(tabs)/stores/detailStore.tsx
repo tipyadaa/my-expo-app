@@ -263,43 +263,36 @@ export default function DetailStore() {
 
         {/* วิธีเชื่อมต่อ Line */}
         <View style={[styles.card, styles.shadowSm]}>
-          <View style={styles.cardHeaderRow}>
-            <Text style={styles.cardTitle}>วิธีเชื่อมต่อ Line</Text>
-            <TouchableOpacity onPress={onEdit} style={styles.editBtn}>
-              <Text style={{ color: "#fff", fontWeight: "800" }}>แก้ไขสาขา</Text>
-            </TouchableOpacity>
+          <Text style={[styles.cardTitle, { textAlign: "center" }]}>วิธีเชื่อมต่อ Line</Text>
+
+          <View style={styles.lineStepList}>
+            <Text style={styles.stepText}>1. คัดลอก Code</Text>
+            <Text style={styles.stepText}>2. กดสร้าง LINE Group, เชิญ LINE OA: SureSure กับทีมงาน เข้ากลุ่มที่ใช้ตรวจสลิป</Text>
+            <Text style={styles.stepText}>3. ส่ง Code ใน LINE Group ที่ต้องการเชื่อมต่อ</Text>
+            <Text style={styles.stepText}>4. เชื่อมต่อสำเร็จ เริ่มตรวจสลิปได้ทันที</Text>
           </View>
 
-          <View style={{ gap: 4, marginTop: 6 }}>
-            <Text style={styles.stepText}>1. เปิดเมนู Code</Text>
-            <Text style={styles.stepText}>2. กดเข้าร่วม LINE Group, ภายใน LINE OA: SureSure</Text>
-            <Text style={styles.stepText}>3. วาง Code ด้านล่างใน Group ที่ต้องการเพิ่มด้วย</Text>
-            <Text style={styles.stepText}>
-              4. หลังเชื่อมต่อสำเร็จ ระบบจะแสดงสถิติรายงานสลิปอัตโนมัติ
-            </Text>
-          </View>
+          <View style={styles.lineCodeCard}>
+            <Text style={styles.lineCodeLabel}>Code สำหรับเชื่อมต่อ Line Group</Text>
 
-          {/* กล่อง Code + ปุ่มคัดลอก */}
-          <View style={styles.codeBoxWrap}>
-            <Text style={styles.codeLabel}>Code สำหรับเชื่อมต่อ Line Group</Text>
-            <View style={styles.codeRow}>
-              <View style={styles.codeField}>
-                <Text style={styles.codeFieldText} numberOfLines={1}>
+            <View style={styles.lineCodeRow}>
+              <View style={styles.lineCodeField}>
+                <Text style={styles.lineCodeText} numberOfLines={1}>
                   {code}
                 </Text>
               </View>
-              <TouchableOpacity style={styles.copyBtn} onPress={copyCode}>
-                <Text style={styles.copyBtnText}>คัดลอก</Text>
+              <TouchableOpacity style={styles.lineCopyBtn} onPress={copyCode}>
+                <Text style={styles.lineCopyBtnText}>คัดลอก</Text>
               </TouchableOpacity>
             </View>
-            <Text style={styles.codeHint}>* โค้ดจะใช้ได้ภายในระยะเวลาจำกัด</Text>
+
+            <Text style={styles.lineHint}>* 1 กลุ่มต่อ 1 Code เท่านั้น ไม่สามารถเปลี่ยนได้</Text>
           </View>
 
-          {/* ปุ่มหลัก ไล่เฉดตามภาพ */}
           <TouchableOpacity
             activeOpacity={0.9}
-            onPress={() => Alert.alert("สร้าง LINE Group", "เดโม่")}
-            style={{ marginTop: 10, borderRadius: 12, overflow: "hidden" }}
+            onPress={() => Alert.alert("สร้าง LINE Group", "เร็วๆนี้")}
+            style={styles.lineGroupBtnWrap}
           >
             <LinearGradient
               colors={["#0A57FF", "#01C3AF"]}
@@ -443,28 +436,40 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 13, fontWeight: "800", color: "#0F172A" },
   stepText: { color: "#475569", fontSize: 12 },
 
-  codeBoxWrap: { marginTop: 10 },
-  codeLabel: { color: "#334155", fontSize: 12, marginBottom: 6, fontWeight: "700" },
-  codeRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  codeField: {
-    flex: 1,
-    height: 38,
-    borderRadius: 8,
-    backgroundColor: "#E8F0FE",
-    justifyContent: "center",
-    paddingHorizontal: 10,
-  },
-  codeFieldText: { color: "#0F172A", fontWeight: "700" },
-  copyBtn: {
-    height: 38,
+  lineStepList: { marginTop: 8, gap: 4 },
+  lineCodeCard: {
+    marginTop: 12,
+    backgroundColor: "#EAF2FF",
+    borderRadius: 16,
+    paddingVertical: 16,
     paddingHorizontal: 14,
-    borderRadius: 8,
-    backgroundColor: "#2563EB",
+    borderWidth: 1,
+    borderColor: "#C7DCFF",
+    gap: 12,
+  },
+  lineCodeLabel: { textAlign: "center", color: "#0F172A", fontWeight: "800", fontSize: 13 },
+  lineCodeRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  lineCodeField: {
+    flex: 1,
+    borderRadius: 10,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: "#D4E3FF",
+  },
+  lineCodeText: { color: "#0F172A", fontWeight: "700" },
+  lineCopyBtn: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: "#0A57FF",
     alignItems: "center",
     justifyContent: "center",
   },
-  copyBtnText: { color: "#fff", fontWeight: "700" },
-  codeHint: { color: "#94A3B8", fontSize: 11, marginTop: 4 },
+  lineCopyBtnText: { color: "#FFFFFF", fontWeight: "800" },
+  lineHint: { color: "#64748B", fontSize: 11, textAlign: "center" },
+  lineGroupBtnWrap: { marginTop: 14, borderRadius: 14, overflow: "hidden" },
 
   primaryBtn: {
     height: 46,

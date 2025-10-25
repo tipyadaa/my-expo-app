@@ -204,6 +204,7 @@ export type UpdateStoreInput = {
   store_name: string;
   store_phone: string;
   store_email: string;
+  website?: string;
   /** เพิ่มเติม: ประเภทของร้านค้า */
   store_type?: string;
   /** เพิ่มเติม: ที่อยู่ร้านค้า */
@@ -215,6 +216,7 @@ export async function updateMyStoreInfo(input: UpdateStoreInput): Promise<void> 
     store_name: input.store_name,
     store_phone: input.store_phone,
     store_email: input.store_email,
+    website: input.website,
     // address fields
     store_address: input.store_address,
     address: input.store_address, // เผื่อ backend ใช้ address แทน store_address

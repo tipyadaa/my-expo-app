@@ -139,7 +139,7 @@ export default function AddStore() {
         [{ text: "ตกลง", onPress: () => router.back() }]
       );
     } catch (e: any) {
-      Alert.alert("สร้างสาขาไม่สำเร็จ", e?.message ?? "Internal Processing Error");
+      Alert.alert("สร้างสาขาไม่สำเร็จ", e?.message ?? "ชื่อผู้ใช้หรือรหัสผ่านผิดพลาด");
     } finally {
       setIsCreating(false);
     }

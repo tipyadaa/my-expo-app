@@ -9,11 +9,12 @@ import {
   Alert,
   Image,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as Clipboard from "expo-clipboard";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
 
 import GradientHeader from "../../Modal/components/ui/GradientHeader";
@@ -26,22 +27,26 @@ import { fetchPlans, type Plan } from "../../lib/service/packageService";
 import CardProfile from "../../Modal/components/ui/CardProfile";
 
 import { updateMyStoreInfo } from "../../lib/service/profileService";
-import { getFirstRoom } from "../../lib/service/roomService";
+
+const monoFontFamily = Platform.select({
+  ios: "Menlo",
+  android: "monospace",
+  default: "monospace",
+});
 
 export default function ProfileScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { data: me, isLoading, isError, refetch } = useMyProfile();
-  const { data: firstRoom } = useQuery({
-    enabled: !!me?.uid,
-    queryKey: ["rooms", "first", me?.uid],
-    queryFn: getFirstRoom,
-  });
 
-  const qrToken = firstRoom?.qr_token ?? "";
-  const fallbackToken = me?.token || me?.access_token || "";
-  const tokenToCopy = qrToken || fallbackToken;
+  const tokenRaw = me?.access_token ?? "";
+  const tokenToCopy =
+    typeof tokenRaw === "string" ? tokenRaw : tokenRaw != null ? String(tokenRaw) : "";
   const tokenForDisplay = tokenToCopy || "-";
+  const tokenDisplayLines =
+    tokenForDisplay !== "-" && typeof tokenForDisplay === "string"
+      ? tokenForDisplay.match(/.{1,32}/g)?.join("\n") ?? tokenForDisplay
+      : tokenForDisplay;
 
   const displayName =
     me?.name_th || me?.name_en || me?.store_name || me?.username || "User";
@@ -136,11 +141,6 @@ export default function ProfileScreen() {
       </View>
     );
 
-  const tokenChunks =
-    typeof tokenForDisplay === "string" && tokenForDisplay !== "-"
-      ? tokenForDisplay.match(/.{1,28}/g) ?? [tokenForDisplay]
-      : [tokenForDisplay];
-
   return (
     <View style={{ flex: 1, backgroundColor: "#F6F8FB" }}>
       <GradientHeader
@@ -233,7 +233,8 @@ export default function ProfileScreen() {
           <CardProfile
             storeName={me?.store_name}
             storePhone={me?.store_phone || me?.phone}
-            storeEmail={me?.store_email || me?.email}
+            storeEmail={me?.store_email || ""}
+            storeWebsite={me?.website || me?.email || ""}
             // รองรับทั้ง store_address และ address จาก backend เดิม
             storeAddress={me?.store_address || me?.address || ""}
             // รองรับทั้ง store_type และ store_category_type จาก backend เดิม
@@ -246,20 +247,25 @@ export default function ProfileScreen() {
           />
 
           {/* API Key */}
-          <View style={[styles.card, styles.shadowSm]}>
-            <Text style={styles.sectionTitle}>API Key</Text>
-            <View style={{ gap: 8, marginTop: 6 }}>
-              {tokenChunks.map((chunk, idx) => (
-                <View key={idx} style={styles.apiChunk}>
-                  <Text numberOfLines={1} style={styles.apiChunkText}>
-                    {chunk}
-                  </Text>
-                </View>
-              ))}
-            </View>
-
-            <TouchableOpacity style={styles.copyBtn} onPress={handleCopy}>
-              <Text style={{ color: "#fff", fontWeight: "700" }}>คัดลอก</Text>
+          <View style={[styles.card, styles.shadowSm, styles.apiCard]}>
+            <Text style={styles.apiTitle}>API Key</Text>
+            <Text selectable style={styles.apiValue}>
+              {tokenDisplayLines}
+            </Text>
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={handleCopy}
+              disabled={!tokenToCopy}
+              style={[styles.apiButtonWrap, !tokenToCopy && { opacity: 0.5 }]}
+            >
+              <LinearGradient
+                colors={["#0A57FF", "#01C3AF"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.apiButton}
+              >
+                <Text style={styles.apiButtonText}>คัดลอก</Text>
+              </LinearGradient>
             </TouchableOpacity>
           </View>
 
@@ -377,23 +383,19 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", marginTop: 6, gap: 6 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#0A57FF" },
   packageLabel: { color: "#0A57FF", fontWeight: "700" },
-  apiChunk: {
-    backgroundColor: "#F8FAFC",
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+  apiCard: { alignItems: "center", gap: 12 },
+  apiTitle: { color: "#1D4ED8", fontWeight: "800", fontSize: 16 },
+  apiValue: {
+    color: "#475569",
+    textAlign: "center",
+    fontWeight: "700",
+    fontSize: 13,
+    fontFamily: monoFontFamily,
+    lineHeight: 18,
   },
-  apiChunkText: { fontSize: 12, color: "#0F172A" },
-  copyBtn: {
-    marginTop: 10,
-    backgroundColor: "#014BFF",
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 10,
-  },
+  apiButtonWrap: { alignSelf: "center", borderRadius: 999, overflow: "hidden", marginTop: 4 },
+  apiButton: { paddingHorizontal: 42, paddingVertical: 10, borderRadius: 999, alignItems: "center" },
+  apiButtonText: { color: "#FFFFFF", fontWeight: "800" },
   primaryBtn: {
     height: 42,
     alignItems: "center",

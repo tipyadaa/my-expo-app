@@ -132,7 +132,7 @@ export default function EditStore() {
         Alert.alert("บันทึกไม่สำเร็จ", data?.message || 'กรุณาลองใหม่');
       }
     } catch (e: any) {
-      Alert.alert("บันทึกไม่สำเร็จ", e?.message ?? 'Internal Processing Error');
+      Alert.alert("บันทึกไม่สำเร็จ", e?.message ?? "ชื่อผู้ใช้หรือรหัสผ่านผิดพลาด");
     } finally {
       setIsSaving(false);
     }
