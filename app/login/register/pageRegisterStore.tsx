@@ -37,6 +37,7 @@ export default function PageRegisterStore() {
   const [storeEmail, setStoreEmail] = React.useState("");
   const [categoryModalOpen, setCategoryModalOpen] = React.useState(false);
   const [initialized, setInitialized] = React.useState(false);
+  const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (!profile || initialized) return;
@@ -75,9 +76,11 @@ export default function PageRegisterStore() {
     const categoryName = storeCategoryLabel.trim();
 
     if (!name) {
-      Alert.alert("กรุณากรอกชื่อร้านค้า", "โปรดระบุชื่อร้านค้าของคุณ");
+      setErrorMessage("\u0e01\u0e23\u0e38\u0e13\u0e32\u0e01\u0e23\u0e2d\u0e01\u0e0a\u0e37\u0e48\u0e2d\u0e23\u0e49\u0e32\u0e19\u0e04\u0e49\u0e32");
       return;
     }
+
+    setErrorMessage(null);
 
     try {
       await updateMyProfileMutation({
@@ -91,8 +94,9 @@ export default function PageRegisterStore() {
       });
       router.replace("/login/register/pagePackage");
     } catch (err: any) {
-      Alert.alert("บันทึกข้อมูลไม่สำเร็จ", err?.message ?? "ไม่สามารถบันทึกข้อมูลร้านค้าได้");
+      Alert.alert("\u0e2a\u0e23\u0e49\u0e32\u0e07\u0e23\u0e49\u0e32\u0e19\u0e44\u0e21\u0e48\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08", err?.message ?? "\u0e01\u0e23\u0e38\u0e13\u0e32\u0e15\u0e23\u0e27\u0e08\u0e2a\u0e2d\u0e1a\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25\u0e2d\u0e35\u0e01\u0e04\u0e23\u0e31\u0e49\u0e07");
     }
+
   };
 
   const renderCategoryOption = ({ item }: { item: Category }) => {
@@ -112,8 +116,10 @@ export default function PageRegisterStore() {
     );
   };
 
-  const categoryPlaceholder = "ประเภทร้านค้า";
+  const categoryPlaceholder = "\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e2b\u0e21\u0e27\u0e14\u0e2b\u0e21\u0e39\u0e48\u0e23\u0e49\u0e32\u0e19\u0e04\u0e49\u0e32";
   const categoryDisplay = storeCategoryLabel || categoryPlaceholder;
+
+  const closeError = () => setErrorMessage(null);
 
   return (
     <LinearGradient
@@ -226,6 +232,20 @@ export default function PageRegisterStore() {
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
+
+      <Modal visible={!!errorMessage} transparent animationType="fade" onRequestClose={closeError}>
+        <View style={styles.alertBackdrop}>
+          <View style={styles.alertBox}>
+            <View style={styles.alertIcon}>
+              <Text style={styles.alertIconText}>!</Text>
+            </View>
+            <Text style={styles.alertMessage}>{errorMessage}</Text>
+            <TouchableOpacity style={styles.alertButton} onPress={closeError}>
+              <Text style={styles.alertButtonText}>ตกลง</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={categoryModalOpen}
@@ -352,6 +372,58 @@ const styles = StyleSheet.create({
   submitText: {
     color: "#FFFFFF",
     fontWeight: "800",
+    fontSize: 16,
+  },
+  alertBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.4)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  alertBox: {
+    width: "100%",
+    maxWidth: 320,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    paddingVertical: 28,
+    paddingHorizontal: 24,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    alignItems: "center",
+  },
+  alertIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 4,
+    borderColor: "#EF4444",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  alertIconText: {
+    fontSize: 32,
+    fontWeight: "800",
+    color: "#EF4444",
+    marginTop: -4,
+  },
+  alertMessage: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#111827",
+    textAlign: "center",
+  },
+  alertButton: {
+    marginTop: 24,
+    paddingVertical: 10,
+    paddingHorizontal: 28,
+    borderRadius: 999,
+    backgroundColor: "#0F172A",
+  },
+  alertButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
     fontSize: 16,
   },
   modalBackdrop: {

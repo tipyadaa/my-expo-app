@@ -9,6 +9,8 @@ import {
   Text,
   TextInput,
   View,
+  Modal,
+  TouchableOpacity,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -27,12 +29,14 @@ export default function PageRegister() {
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [confirm, setConfirm] = React.useState("");
+  const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 
   const validate = () => {
     if (!username || !nameTh || !phone || !email || !password || !confirm) {
-      Alert.alert("กรอกข้อมูลไม่ครบ", "กรุณากรอกข้อมูลให้ครบทุกช่อง");
+      setErrorMessage("กรุณากรอกข้อมูลให้ครบทุกช่อง");
       return false;
     }
+
     const digits = phone.replace(/\D/g, "");
     if (!/^\d{9,10}$/.test(digits)) {
       Alert.alert("เบอร์โทรไม่ถูกต้อง", "กรุณากรอกตัวเลข 9-10 หลัก");
@@ -77,6 +81,8 @@ export default function PageRegister() {
     }
   };
 
+  const closeError = () => setErrorMessage(null);
+
   return (
     <LinearGradient
       colors={["#0A4BFF", "#01C3AF"]}
@@ -86,7 +92,7 @@ export default function PageRegister() {
     >
       <SafeAreaView style={styles.safe}>
         <Pressable
-          onPress={() => router.replace("/login/register/pageLogin")}
+          onPress={() => router.replace("/appLogin")}
           style={styles.closeBtn}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
@@ -182,6 +188,20 @@ export default function PageRegister() {
           </View>
         </ScrollView>
       </SafeAreaView>
+
+      <Modal visible={!!errorMessage} animationType="fade" transparent onRequestClose={closeError}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.alertBox}>
+            <View style={styles.alertIcon}>
+              <Text style={styles.alertIconText}>!</Text>
+            </View>
+            <Text style={styles.alertMessage}>{errorMessage}</Text>
+            <TouchableOpacity style={styles.alertButton} onPress={closeError}>
+              <Text style={styles.alertButtonText}>ตกลง</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </LinearGradient>
   );
 }
@@ -275,4 +295,61 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(15,23,42,0.35)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  alertBox: {
+    width: "100%",
+    maxWidth: 320,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    paddingHorizontal: 24,
+    paddingVertical: 28,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    alignItems: "center",
+  },
+  alertIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 4,
+    borderColor: "#EF4444",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  alertIconText: {
+    fontSize: 32,
+    fontWeight: "800",
+    color: "#EF4444",
+    marginTop: -4,
+  },
+  alertMessage: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#111827",
+    textAlign: "center",
+  },
+  alertButton: {
+    marginTop: 24,
+    paddingHorizontal: 28,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: "#0F172A",
+  },
+  alertButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+    fontSize: 16,
+  },
 });
+
+
+
+
+
