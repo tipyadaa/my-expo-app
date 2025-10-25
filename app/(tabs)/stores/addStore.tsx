@@ -1,4 +1,4 @@
-// app/(tabs)/stores/addStore.tsx
+﻿// app/(tabs)/stores/addStore.tsx
 import * as React from "react";
 import {
   View,
@@ -18,6 +18,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import GradientHeader from "../../../Modal/components/ui/GradientHeader";
 import SectionCard from "../../../Modal/components/ui/SectionCard";
 import PrimaryButton from "../../../Modal/components/ui/PrimaryButton";
+import AlertModal from "../../../Modal/components/ui/AlertModal";
+import SuccessModal from "../../../Modal/components/ui/SuccessModal"; // ✅ เพิ่มเข้ามา
 
 import { useLocalAuthQuery } from "../../../lib/authService";
 import { useBanksMine } from "../../../lib/hooks/useBank";
@@ -40,8 +42,12 @@ export default function AddStore() {
   const [hideSenderAcc, setHideSenderAcc] = React.useState(false);
   const [hideReceiverAcc, setHideReceiverAcc] = React.useState(false);
   const [isCreating, setIsCreating] = React.useState(false);
+  const [formError, setFormError] = React.useState<string | null>(null);
 
-  // ดึงบัญชีธนาคารจริงจาก backend
+  // ✅ state สำหรับ SuccessModal
+  const [successInfo, setSuccessInfo] = React.useState<{ title?: string; lines: string[] } | null>(null);
+
+  // ── ดึงบัญชีธนาคารจริงจาก backend ─────────────────────────
   const {
     data: bankList = [],
     isLoading: isLoadingBanks,
@@ -51,12 +57,13 @@ export default function AddStore() {
 
   type LinkedAccount = { id: number; bank: string; number: string; enabled: boolean };
   const [linked, setLinked] = React.useState<LinkedAccount[]>([]);
+
   React.useEffect(() => {
     const arr: BankItem[] = Array.isArray(bankList) ? (bankList as BankItem[]) : [];
     const mapped: LinkedAccount[] = arr.map((b) => ({
       id: Number(b.id),
       bank: b.name_th || b.name_en || b.bank_code || "ธนาคาร",
-      number: String(b.account_no || ''),
+      number: String(b.account_no || ""),
       enabled: !!b.is_active,
     }));
     setLinked(mapped);
@@ -70,7 +77,7 @@ export default function AddStore() {
 
   const onSubmit = async () => {
     if (!branchName.trim()) {
-      Alert.alert("กรอกข้อมูลไม่ครบ", "โปรดระบุชื่อสาขาร้านค้า");
+      setFormError("กรุณากรอกข้อมูลให้ครบทุกช่อง");
       return;
     }
 
@@ -84,13 +91,13 @@ export default function AddStore() {
 
     setIsCreating(true);
     try {
-      // 1) Create room (UI เดิม แต่ใช้ fetch ตามสเปกใหม่)
       const createUrl = `${API_BASE}/room2/create`;
       const headers = {
-        'Content-Type': 'application/json',
-        'ngrok-skip-browser-warning': 'true',
-        apikey: String((auth as any)?.token ?? ''),
+        "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true",
+        apikey: String((auth as any)?.token ?? ""),
       } as const;
+
       const createBody = {
         user_id: userId,
         line_group_id: "",
@@ -102,12 +109,16 @@ export default function AddStore() {
         show_recipient: !hideReceiverAcc,
         list_bank: "",
       };
-      const res = await fetch(createUrl, { method: 'POST', headers, body: JSON.stringify(createBody) });
+
+      const res = await fetch(createUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(createBody),
+      });
       const data = await safeParse<any>(res);
 
-      // 2) Update list_bank หลังสร้าง (เพื่อกัน list_bank เป็น null)
       const createdId = Number((data?.data?.id ?? data?.id ?? -1) as any);
-      if (data?.message === 'Success' && createdId > 0) {
+      if (data?.message === "Success" && createdId > 0) {
         const updateUrl = `${API_BASE}/room2/update`;
         const updateBody = {
           id: createdId,
@@ -119,27 +130,27 @@ export default function AddStore() {
           list_bank: JSON.stringify(selectedIds),
         };
         try {
-          await fetch(updateUrl, { method: 'PUT', headers, body: JSON.stringify(updateBody) });
+          await fetch(updateUrl, { method: "PUT", headers, body: JSON.stringify(updateBody) });
         } catch {}
       }
 
-      // refresh list + success
       qc.invalidateQueries({ queryKey: ["stores"] });
 
-      const showList =
-        selectedIds.length === 0
-          ? "-"
-          : linked
-              .filter((x) => selectedIds.includes(x.id))
-              .map((x) => x.number)
-              .join(", ");
-      Alert.alert(
-        "สร้างสาขาสำเร็จ",
-        `ชื่อสาขา: ${branchName}\nบัญชีที่เชื่อมต่อ: ${showList}\nเตือนขั้นต่ำ: ${minAmount}`,
-        [{ text: "ตกลง", onPress: () => router.back() }]
-      );
+      // ✅ ใช้ SuccessModal แทน Alert.alert
+      const selectedBanks = linked.filter((x) => selectedIds.includes(x.id));
+      const lines = [
+        `ชื่อสาขา: ${branchName}`,
+        selectedBanks.length > 0
+          ? `บัญชีที่เชื่อมต่อ: ${selectedBanks.map((b) => b.bank).join(", ")}`
+          : `ไม่มีบัญชีเชื่อมต่อ`,
+      ];
+
+      setSuccessInfo({
+        title: "สร้างสาขาสำเร็จ",
+        lines,
+      });
     } catch (e: any) {
-      Alert.alert("สร้างสาขาไม่สำเร็จ", e?.message ?? "ชื่อผู้ใช้หรือรหัสผ่านผิดพลาด");
+      Alert.alert("สร้างสาขาไม่สำเร็จ", e?.message ?? "เกิดข้อผิดพลาด");
     } finally {
       setIsCreating(false);
     }
@@ -147,6 +158,24 @@ export default function AddStore() {
 
   return (
     <View style={{ flex: 1, backgroundColor: "#F6F8FB" }}>
+      {/* AlertModal สำหรับแจ้งเตือน error */}
+      <AlertModal
+        visible={formError !== null}
+        message={formError ?? ""}
+        onClose={() => setFormError(null)}
+      />
+
+      {/* ✅ SuccessModal แสดงเมื่อสร้างสาขาสำเร็จ */}
+      <SuccessModal
+        visible={!!successInfo}
+        title={successInfo?.title ?? "สร้างสาขาสำเร็จ"}
+        lines={successInfo?.lines ?? []}
+        onClose={() => {
+          setSuccessInfo(null);
+          router.back();
+        }}
+      />
+
       {/* Header */}
       <GradientHeader
         right={
@@ -159,6 +188,7 @@ export default function AddStore() {
         }
       />
 
+      {/* Panel */}
       <View style={styles.panel}>
         <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
           <Ionicons name="close" size={22} color="#111827" />
@@ -177,7 +207,6 @@ export default function AddStore() {
               onChangeText={setBranchName}
             />
 
-            {/* บัญชีรับเงินที่เชื่อมต่อ (ดึงจริง) */}
             <Text style={[styles.groupTitle, { marginTop: 12 }]}>บัญชีรับเงินที่เชื่อมต่อ</Text>
 
             {isLoadingBanks && (
@@ -185,19 +214,6 @@ export default function AddStore() {
                 <ActivityIndicator />
                 <Text style={{ color: "#64748B", marginTop: 6 }}>กำลังโหลดบัญชีธนาคาร...</Text>
               </View>
-            )}
-
-            {isBankError && (
-              <View style={{ paddingVertical: 10 }}>
-                <Text style={{ color: "#DC2626" }}>โหลดบัญชีธนาคารไม่สำเร็จ</Text>
-                <TouchableOpacity onPress={refetchBanks}>
-                  <Text style={{ color: "#0A57FF", marginTop: 4 }}>ลองใหม่</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {!isLoadingBanks && !isBankError && linked.length === 0 && (
-              <Text style={{ color: "#64748B" }}>ยังไม่มีบัญชีที่เชื่อมต่อ</Text>
             )}
 
             {!isLoadingBanks &&
@@ -217,7 +233,7 @@ export default function AddStore() {
                 </View>
               ))}
 
-            {/* ตั้งค่าระบบการตรวจสอบ */}
+            {/* ตั้งค่าการตรวจสอบ */}
             <TouchableOpacity style={styles.accordionHead} onPress={() => setShowRules((s) => !s)}>
               <Text style={styles.groupTitle}>ตั้งค่าระบบการตรวจสอบ</Text>
               <Ionicons name={showRules ? "chevron-up" : "chevron-down"} size={18} color="#64748B" />
@@ -270,18 +286,13 @@ export default function AddStore() {
             onPress={onSubmit}
             disabled={isCreating}
           />
-          {isCreating && (
-            <View style={{ marginTop: 8, alignItems: "center" }}>
-              <ActivityIndicator />
-              <Text style={{ marginTop: 6, color: "#64748B" }}>กำลังส่งข้อมูล...</Text>
-            </View>
-          )}
         </ScrollView>
       </View>
     </View>
   );
 }
 
+/* ─────── Helper ─────── */
 async function safeParse<T>(res: Response): Promise<T | null> {
   try {
     const text = await res.text();
@@ -292,6 +303,7 @@ async function safeParse<T>(res: Response): Promise<T | null> {
   }
 }
 
+/* ─────── Styles ─────── */
 const styles = StyleSheet.create({
   panel: {
     flex: 1,
