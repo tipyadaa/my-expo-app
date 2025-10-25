@@ -24,6 +24,9 @@ import {
 } from "../../../lib/service/storeService";
 import { useLocalAuthQuery } from "../../../lib/authService";
 
+// ✅ นำเข้า DeleteAlert
+import DeleteAlert from "../../../Modal/components/ui/deleteAlert";
+
 export default function StoresScreen() {
   const router = useRouter();
   const { data: items, isLoading, isError, refetch, isFetching } = useStores();
@@ -37,6 +40,7 @@ export default function StoresScreen() {
 
   const delMut = useDeleteStore();
 
+  // pull-to-refresh
   const [refreshing, setRefreshing] = React.useState(false);
   const onRefresh = React.useCallback(async () => {
     try {
@@ -47,33 +51,26 @@ export default function StoresScreen() {
     }
   }, [refetch]);
 
-  const confirmDelete = (id: string) => {
-    Alert.alert("ยืนยันการลบ", "ต้องการลบสาขานี้หรือไม่?", [
-      { text: "ยกเลิก", style: "cancel" },
-      {
-        text: "ลบ",
-        style: "destructive",
-        onPress: () =>
-          delMut.mutate(id, {
-            onError: (e: any) => {
-              Alert.alert("ลบไม่สำเร็จ", e?.message ?? "เกิดข้อผิดพลาด");
-            },
-          }),
-      },
-    ]);
-  };
+  // ✅ state สำหรับ DeleteAlert
+  const [deleteTarget, setDeleteTarget] = React.useState<{ id: string; name: string } | null>(null);
+  const openDelete = (branch: { id: string; name: string }) =>
+    setDeleteTarget({ id: branch.id, name: branch.name });
+  const closeDelete = () => setDeleteTarget(null);
 
+  // คัดลอก code
   const copyCode = async (code: string) => {
     await Clipboard.setStringAsync(code);
     Alert.alert("คัดลอก Code สำเร็จ", code);
   };
 
+  // เดโม่สร้าง LINE group
   const createLineGroup = (branch: { name: string }) => {
     Alert.alert("สร้าง LINE Group", `สาขา: ${branch.name}\n(เดโม่)`);
   };
 
   const renderItem = ({ item }: { item: StoreBranch }) => {
-    const deleting = delMut.isPending;
+    // แสดง loading ที่แถวที่กำลังลบอยู่เท่านั้น
+    const deleting = delMut.isPending && deleteTarget?.id === item.id;
     const isConnected = item.status === "เชื่อมต่อเรียบร้อย";
 
     return (
@@ -135,7 +132,8 @@ export default function StoresScreen() {
               <TouchableOpacity
                 style={[styles.iconBtn, deleting && { opacity: 0.6 }]}
                 disabled={deleting}
-                onPress={() => confirmDelete(item.id)}
+                // ✅ เปิด DeleteAlert แทน Alert.confirm เดิม
+                onPress={() => openDelete(item)}
               >
                 {deleting ? (
                   <ActivityIndicator size="small" />
@@ -153,7 +151,7 @@ export default function StoresScreen() {
             <TouchableOpacity
               style={[styles.copyBtnBlue]}
               onPress={() => copyCode(item.code)}
-              disabled={deleting}
+              disabled={delMut.isPending}
             >
               <Text style={styles.copyBtnBlueText}>คัดลอก code</Text>
             </TouchableOpacity>
@@ -161,7 +159,7 @@ export default function StoresScreen() {
             <TouchableOpacity
               style={styles.ghostBtn}
               onPress={() => createLineGroup(item)}
-              disabled={deleting}
+              disabled={delMut.isPending}
             >
               <Text style={styles.ghostBtnText}>สร้าง line group</Text>
             </TouchableOpacity>
@@ -172,70 +170,93 @@ export default function StoresScreen() {
   };
 
   return (
-    <FlatList
-      style={{ flex: 1, backgroundColor: "#F6F8FB" }}
-      contentContainerStyle={{ paddingBottom: 96 }}
-      data={items ?? []}
-      keyExtractor={(b) => b.id}
-      renderItem={renderItem}
-      refreshControl={
-        <RefreshControl refreshing={refreshing || isFetching} onRefresh={onRefresh} />
-      }
-      ListHeaderComponent={
-        <>
-          <GradientHeader
-            right={
-              <Link href="/(tabs)/profile" asChild>
-                <TouchableOpacity style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                  <MaterialCommunityIcons name="storefront-outline" size={18} color="#EAF4FF" />
-                  <Text style={{ color: "#EAF4FF" }}>Hi, {displayName}</Text>
-                </TouchableOpacity>
-              </Link>
-            }
-          />
+    <>
+      <FlatList
+        style={{ flex: 1, backgroundColor: "#F6F8FB" }}
+        contentContainerStyle={{ paddingBottom: 96 }}
+        data={items ?? []}
+        keyExtractor={(b) => b.id}
+        renderItem={renderItem}
+        refreshControl={
+          <RefreshControl refreshing={refreshing || isFetching} onRefresh={onRefresh} />
+        }
+        ListHeaderComponent={
+          <>
+            <GradientHeader
+              right={
+                <Link href="/(tabs)/profile" asChild>
+                  <TouchableOpacity style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                    <MaterialCommunityIcons name="storefront-outline" size={18} color="#EAF4FF" />
+                    <Text style={{ color: "#EAF4FF" }}>Hi, {displayName}</Text>
+                  </TouchableOpacity>
+                </Link>
+              }
+            />
 
-          <View style={styles.panel}>
-            <View style={{ flexDirection: "row", alignItems: "center", paddingBottom: 14 }}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.title}>สาขาร้านค้า</Text>
-                <Text style={styles.subtitle}>เชื่อมต่อสาขากับ LINE Group เพื่อตรวจสอบสลิป</Text>
+            <View style={styles.panel}>
+              <View style={{ flexDirection: "row", alignItems: "center", paddingBottom: 14 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.title}>สาขาร้านค้า</Text>
+                  <Text style={styles.subtitle}>เชื่อมต่อสาขากับ LINE Group เพื่อตรวจสอบสลิป</Text>
+                </View>
+
+                <Link href="/(tabs)/stores/addStore" asChild>
+                  <TouchableOpacity style={styles.fabSmall}>
+                    <Ionicons name="add" size={22} color="#fff" />
+                  </TouchableOpacity>
+                </Link>
               </View>
 
-              <Link href="/(tabs)/stores/addStore" asChild>
-                <TouchableOpacity style={styles.fabSmall}>
-                  <Ionicons name="add" size={22} color="#fff" />
-                </TouchableOpacity>
-              </Link>
+              {/* Loading / Error */}
+              {isLoading && (
+                <View style={{ paddingVertical: 12, alignItems: "center" }}>
+                  <ActivityIndicator />
+                  <Text style={{ marginTop: 8, color: "#64748B" }}>กำลังโหลด...</Text>
+                </View>
+              )}
+              {isError && !isLoading && (
+                <View style={{ paddingVertical: 12, alignItems: "center" }}>
+                  <Text style={{ color: "#DC2626", fontWeight: "700" }}>โหลดไม่สำเร็จ</Text>
+                  <TouchableOpacity
+                    onPress={() => refetch()}
+                    style={[styles.ghostBtn, { marginTop: 8, paddingHorizontal: 16 }]}
+                  >
+                    <Text style={styles.ghostBtnText}>ลองอีกครั้ง</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              {!isLoading && !isError && (items?.length ?? 0) === 0 && (
+                <View style={{ paddingVertical: 12, alignItems: "center" }}>
+                  <Text style={{ color: "#64748B" }}>ยังไม่มีสาขา</Text>
+                </View>
+              )}
             </View>
+          </>
+        }
+        ListFooterComponent={<View style={{ height: 16 }} />}
+      />
 
-            {/* Loading / Error */}
-            {isLoading && (
-              <View style={{ paddingVertical: 12, alignItems: "center" }}>
-                <ActivityIndicator />
-                <Text style={{ marginTop: 8, color: "#64748B" }}>กำลังโหลด...</Text>
-              </View>
-            )}
-            {isError && !isLoading && (
-              <View style={{ paddingVertical: 12, alignItems: "center" }}>
-                <Text style={{ color: "#DC2626", fontWeight: "700" }}>โหลดไม่สำเร็จ</Text>
-                <TouchableOpacity
-                  onPress={() => refetch()}
-                  style={[styles.ghostBtn, { marginTop: 8, paddingHorizontal: 16 }]}
-                >
-                  <Text style={styles.ghostBtnText}>ลองอีกครั้ง</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-            {!isLoading && !isError && (items?.length ?? 0) === 0 && (
-              <View style={{ paddingVertical: 12, alignItems: "center" }}>
-                <Text style={{ color: "#64748B" }}>ยังไม่มีสาขา</Text>
-              </View>
-            )}
-          </View>
-        </>
-      }
-      ListFooterComponent={<View style={{ height: 16 }} />}
-    />
+      {/* ✅ DeleteAlert เชื่อมต่อการลบสาขา */}
+      <DeleteAlert
+        visible={!!deleteTarget}
+        title="ลบสาขานี้"
+        subtitle={`ยืนยันการลบสาขา: ${deleteTarget?.name ?? ""}`}
+        confirmLabel="ยืนยัน"
+        cancelLabel="ยกเลิก"
+        onCancel={closeDelete}
+        onConfirm={async () => {
+          if (!deleteTarget) return;
+          // เรียก mutation แบบ async ให้ modal แสดง loading + success ได้เอง
+          await delMut.mutateAsync(deleteTarget.id);
+        }}
+        onDone={async () => {
+          // ปิดแล้วรีเฟรชรายการ
+          await refetch();
+        }}
+        // autoCloseMs (ปรับเวลาแสดง "ลบสำเร็จ" ได้ ถ้าอยาก)
+        // autoCloseMs={1200}
+      />
+    </>
   );
 }
 
@@ -283,9 +304,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
     borderWidth: 1,
   },
-  // ✅ สีสำหรับสถานะเชื่อมต่อแล้ว
   pillGreen: { backgroundColor: "#ECFDF5", borderColor: "#A7F3D0" },
-  // ✅ สีสำหรับยังไม่ได้เชื่อมต่อ
   pillRed: { backgroundColor: "#FEE2E2", borderColor: "#FCA5A5" },
 
   pillText: { fontSize: 11, fontWeight: "700" },

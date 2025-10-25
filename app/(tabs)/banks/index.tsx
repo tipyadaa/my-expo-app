@@ -5,7 +5,6 @@ import {
   Text,
   FlatList,
   TouchableOpacity,
-  Alert,
   StyleSheet,
   ActivityIndicator,
   Image,
@@ -19,9 +18,11 @@ import SectionCard from "../../../Modal/components/ui/SectionCard";
 import { useBanksMine, useDeleteBank } from "../../../lib/hooks/useBank";
 import { getStoredAuth } from "../../../lib/authService";
 
+// ✅ นำเข้า DeleteAlert
+import DeleteAlert from "../../../Modal/components/ui/deleteAlert";
+
 /* =========================================================
  *  รายชื่อธนาคาร (code -> image/name)
- *  หมายเหตุ: ใส่เฉพาะที่ใช้งานบ่อยได้ก่อน แล้วเพิ่มทีหลังได้
  * =======================================================*/
 const listBank = [
   { value: "002", label: "ธนาคารกรุงเทพ", imageUrl: "https://moneyexpo.net/wp-content/uploads/2023/05/BBL.jpg" },
@@ -53,18 +54,14 @@ const listBank = [
   { value: "098", label: "ธนาคารพัฒนาวิสาหกิจขนาดกลางและขนาดย่อม", imageUrl: "https://csrgroup.co.th/img/Client258-6.png" },
 ];
 
-// ตัวย่อ/รูปแบบสะกด → code ตัวเลข
+// alias
 const BANK_ALIAS: Record<string, string> = {
   KBANK: "004", KASIKORN: "004",
   SCB: "014", SIAMCOMMERCIAL: "014",
   KTB: "006", KRUNGTHAI: "006",
   BBL: "002", BANGKOKBANK: "002",
   BAY: "025", KRUNGSRI: "025",
-  UOB: "024",
-  GSB: "030",
-  GHB: "033",
-  BAAC: "034",
-  // ชื่อไทยยอดนิยม
+  UOB: "024", GSB: "030", GHB: "033", BAAC: "034",
   ธนาคารกสิกรไทย: "004",
   ธนาคารไทยพาณิชย์: "014",
   ธนาคารกรุงเทพ: "002",
@@ -73,38 +70,34 @@ const BANK_ALIAS: Record<string, string> = {
   ธนาคารประเทศจีน: "052",
 };
 
-// normalize string เช่น "SCB,kbake" → "SCB"
 function normalizeCode(raw?: string) {
   if (!raw) return "";
   const first = String(raw).trim().split(/[^\p{L}\p{N}]+/u)[0] || "";
   return first.toUpperCase();
 }
-
-// ค้น meta จาก bank_code แบบฉลาด
 function getBankMetaSmart(bank_code?: string) {
   if (!bank_code) return null;
-
-  // 1) ตรงกับรหัสตัวเลข
   const byCode = listBank.find(b => b.value === bank_code);
   if (byCode) return byCode;
-
-  // 2) ใช้ alias จากตัวย่อ/ชื่อไทย
-  const norm = normalizeCode(bank_code); // e.g. "SCB,kbake" -> "SCB"
+  const norm = normalizeCode(bank_code);
   if (BANK_ALIAS[norm]) {
     const viaAlias = listBank.find(b => b.value === BANK_ALIAS[norm]);
     if (viaAlias) return viaAlias;
   }
-
-  // 3) ชื่อไทยเต็มตรงกับ label
   const byLabel = listBank.find(b => b.label === bank_code);
   if (byLabel) return byLabel;
-
-  // 4) เผื่อเคสสะกดใกล้เคียง (เช่น label ปรับเคส)
   const byNorm = listBank.find(b => normalizeCode(b.label) === norm);
   if (byNorm) return byNorm;
-
   return null;
 }
+
+// 🔒 มาส์กเลขบัญชี: โชว์ท้าย 4 ตัว
+const mask = (s?: string) => {
+  const d = String(s || "").replace(/\D/g, "");
+  if (!d) return "-";
+  if (d.length <= 4) return d;
+  return "xxxx-xxxx-" + d.slice(-4);
+};
 
 export default function BankList() {
   const router = useRouter();
@@ -112,7 +105,6 @@ export default function BankList() {
   const deleteMut = useDeleteBank();
 
   const [username, setUsername] = React.useState("User");
-
   React.useEffect(() => {
     (async () => {
       const auth = await getStoredAuth();
@@ -121,28 +113,28 @@ export default function BankList() {
     })();
   }, []);
 
-  function confirmDelete(id: number) {
-    Alert.alert("ยืนยันการลบ", "คุณต้องการลบบัญชีนี้หรือไม่?", [
-      { text: "ยกเลิก", style: "cancel" },
-      {
-        text: "ลบ",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await deleteMut.mutateAsync(id);
-            Alert.alert("สำเร็จ", "ลบบัญชีเรียบร้อย");
-          } catch (e: any) {
-            Alert.alert("ผิดพลาด", e.message ?? "ไม่สามารถลบได้");
-          }
-        },
-      },
-    ]);
-  }
+  // ✅ state สำหรับ DeleteAlert
+  const [deleteTarget, setDeleteTarget] = React.useState<{
+    id: number;
+    subtitle: string;
+  } | null>(null);
+  const openDelete = (item: any) => {
+    const isPP = item.account_type === "PROMPTPAY" || item.bank_code === "PROMPTPAY";
+    const meta = isPP ? null : getBankMetaSmart(item.bank_code);
+    const name = isPP
+      ? (item.prompt_pay_type === "MSISDN" ? "PromptPay (เบอร์โทร)"
+        : item.prompt_pay_type === "NATID" ? "PromptPay (เลขบัตร)"
+        : item.prompt_pay_type === "EWALLETID" ? "PromptPay (e-Wallet ID)" : "PromptPay")
+      : (meta?.label ?? item.bank_code ?? "ธนาคาร");
+    const sub = `${name} • ${mask(item.account_no)}`;
+    setDeleteTarget({ id: Number(item.id), subtitle: sub });
+  };
+  const closeDelete = () => setDeleteTarget(null);
 
   // ─── renderItem ────────────────────────────────────────
   const renderItem = ({ item }: any) => {
-    // แสดง PromptPay ด้วยโลโก้เฉพาะ
     const isPromptPay = item.account_type === "PROMPTPAY" || item.bank_code === "PROMPTPAY";
+
     if (isPromptPay) {
       const ppIcon = "https://upload.wikimedia.org/wikipedia/commons/2/2b/PromptPay_Logo.png";
       const ppTypeLabel =
@@ -153,6 +145,7 @@ export default function BankList() {
           : item.prompt_pay_type === "EWALLETID"
           ? "PromptPay - e-Wallet ID"
           : "PromptPay";
+
       return (
         <View style={{ paddingHorizontal: 16 }}>
           <SectionCard>
@@ -177,7 +170,7 @@ export default function BankList() {
                   <Ionicons name="create-outline" size={16} color="#2563EB" />
                 </TouchableOpacity>
                 <TouchableOpacity
-                  onPress={() => confirmDelete(item.id)}
+                  onPress={() => openDelete(item)}   // ✅ ใช้ DeleteAlert
                   style={styles.iconBtn}
                   accessibilityLabel="ลบบัญชี"
                 >
@@ -201,11 +194,7 @@ export default function BankList() {
         <SectionCard>
           <View style={{ flexDirection: "row", gap: 12 }}>
             {/* โลโก้ธนาคาร */}
-            <Image
-              source={{ uri: bankLogo }}
-              style={styles.logo}
-              resizeMode="contain"
-            />
+            <Image source={{ uri: bankLogo }} style={styles.logo} resizeMode="contain" />
 
             {/* ข้อมูลบัญชี */}
             <View style={{ flex: 1, gap: 2 }}>
@@ -220,10 +209,7 @@ export default function BankList() {
             <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
               <TouchableOpacity
                 onPress={() =>
-                  router.push({
-                    pathname: "/(tabs)/banks/editBank",
-                    params: { id: item.id },
-                  })
+                  router.push({ pathname: "/(tabs)/banks/editBank", params: { id: item.id } })
                 }
                 style={styles.iconBtn}
                 accessibilityLabel="แก้ไขบัญชี"
@@ -232,7 +218,7 @@ export default function BankList() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                onPress={() => confirmDelete(item.id)}
+                onPress={() => openDelete(item)}   // ✅ ใช้ DeleteAlert
                 style={styles.iconBtn}
                 accessibilityLabel="ลบบัญชี"
               >
@@ -266,44 +252,64 @@ export default function BankList() {
   }
 
   return (
-    <FlatList
-      style={{ flex: 1, backgroundColor: "#F6F8FB" }}
-      contentContainerStyle={{ paddingBottom: 96 }}
-      data={data ?? []}
-      keyExtractor={(it) => String(it.id)}
-      ListHeaderComponent={
-        <>
-          <GradientHeader
-            right={
-              <Link href="/(tabs)/profile" asChild>
-                <TouchableOpacity style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                  <MaterialCommunityIcons name="storefront-outline" size={18} color="#EAF4FF" />
-                  <Text style={{ color: "#EAF4FF" }}>Hi, {username}</Text>
-                </TouchableOpacity>
-              </Link>
-            }
-          />
-          <View style={styles.panel}>
-            <View style={{ flexDirection: "row", alignItems: "center", paddingBottom: 8 }}>
-              <Text style={styles.title}>บัญชีรับเงินร้านค้า</Text>
-              <View style={{ flex: 1 }} />
-              <Link href="/(tabs)/banks/addBank" asChild>
-                <TouchableOpacity style={styles.fabSmall} accessibilityLabel="เพิ่มบัญชี">
-                  <Ionicons name="add" size={22} color="#fff" />
-                </TouchableOpacity>
-              </Link>
+    <>
+      <FlatList
+        style={{ flex: 1, backgroundColor: "#F6F8FB" }}
+        contentContainerStyle={{ paddingBottom: 96 }}
+        data={data ?? []}
+        keyExtractor={(it) => String(it.id)}
+        ListHeaderComponent={
+          <>
+            <GradientHeader
+              right={
+                <Link href="/(tabs)/profile" asChild>
+                  <TouchableOpacity style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                    <MaterialCommunityIcons name="storefront-outline" size={18} color="#EAF4FF" />
+                    <Text style={{ color: "#EAF4FF" }}>Hi, {username}</Text>
+                  </TouchableOpacity>
+                </Link>
+              }
+            />
+            <View style={styles.panel}>
+              <View style={{ flexDirection: "row", alignItems: "center", paddingBottom: 8 }}>
+                <Text style={styles.title}>บัญชีรับเงินร้านค้า</Text>
+                <View style={{ flex: 1 }} />
+                <Link href="/(tabs)/banks/addBank" asChild>
+                  <TouchableOpacity style={styles.fabSmall} accessibilityLabel="เพิ่มบัญชี">
+                    <Ionicons name="add" size={22} color="#fff" />
+                  </TouchableOpacity>
+                </Link>
+              </View>
             </View>
+          </>
+        }
+        renderItem={renderItem}
+        ListFooterComponent={<View style={{ height: 16 }} />}
+        ListEmptyComponent={
+          <View style={styles.center}>
+            <Text>ยังไม่มีบัญชีธนาคาร</Text>
           </View>
-        </>
-      }
-      renderItem={renderItem}
-      ListFooterComponent={<View style={{ height: 16 }} />}
-      ListEmptyComponent={
-        <View style={styles.center}>
-          <Text>ยังไม่มีบัญชีธนาคาร</Text>
-        </View>
-      }
-    />
+        }
+      />
+
+      {/* ✅ DeleteAlert สำหรับยืนยันลบ + แสดง "ลบสำเร็จ" */}
+      <DeleteAlert
+        visible={!!deleteTarget}
+        title="ลบบัญชีนี้"
+        subtitle={deleteTarget?.subtitle ?? "ยืนยันการลบบัญชีนี้"}
+        confirmLabel="ยืนยัน"
+        cancelLabel="ยกเลิก"
+        onCancel={closeDelete}
+        onConfirm={async () => {
+          if (!deleteTarget) return;
+          await deleteMut.mutateAsync(deleteTarget.id);
+        }}
+        onDone={async () => {
+          closeDelete();
+          await refetch();
+        }}
+      />
+    </>
   );
 }
 
