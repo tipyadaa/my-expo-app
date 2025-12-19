@@ -3,6 +3,7 @@
     "name": "my-expo-app",
     "slug": "my-expo-app",
     "version": "1.0.0",
+    "scheme": "suresure",
     "web": {
       "favicon": "./assets/favicon.png"
     },
@@ -10,7 +11,8 @@
       "tsconfigPaths": true
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-web-browser"
     ],
     "orientation": "portrait",
     "icon": "./assets/icon.png",

@@ -1,16 +1,49 @@
 // app/appLogin.tsx
 import * as React from "react";
-import { View, Text, Pressable, StyleSheet, SafeAreaView, StatusBar } from "react-native";
+import { View, Text, Pressable, StyleSheet, SafeAreaView, StatusBar, ActivityIndicator, Alert } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import SureSureLogo from "../components/SureSureLogo";
+import { loginWithLine } from "../lib/service/lineLoginService";
 
 export default function AppLogin() {
   const router = useRouter();
+  const [loading, setLoading] = React.useState(false);
 
-  const onLoginWithLine = () => {
-    // TODO: ต่อ SDK ของ LINE ภายหลัง
-    router.replace("/(tabs)/report"); // เข้าหน้าหลักหลังล็อกอิน
+  /**
+   * ล็อกอินผ่าน LINE OAuth
+   * ตาม flow ของ Svelte example
+   */
+  const onLoginWithLine = async () => {
+    if (loading) return;
+
+    setLoading(true);
+    try {
+      // เรียกใช้ LINE OAuth service
+      const { token, user } = await loginWithLine();
+
+      // Step 9: Redirect ตาม step (เหมือน Svelte บรรทัด 186-195)
+      // if (datalogin.data.step < 10) redirectTo = /advice
+      // else redirectTo = /dashboard
+      if (user?.step && user.step < 10) {
+        // ถ้ายังไม่ได้ setup ครบ ส่งไปหน้า setup
+        router.replace(`/login/register/pageRegisterStore`);
+      } else {
+        // ถ้า setup ครบแล้ว ส่งไปหน้าหลัก
+        router.replace("/(tabs)/report");
+      }
+
+    } catch (error: any) {
+      console.error('❌ LINE login failed:', error);
+
+      Alert.alert(
+        'ล็อกอินไม่สำเร็จ',
+        error?.message || 'กรุณาลองใหม่อีกครั้ง',
+        [{ text: 'ตกลง' }]
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   const onLoginWithEmail = () => {
@@ -40,14 +73,22 @@ export default function AppLogin() {
           <View style={{ height: 48 }} />
 
           {/* ปุ่ม: ล็อกอินผ่าน LINE */}
-          <Pressable style={[styles.btn, styles.btnLine]} onPress={onLoginWithLine}>
-            <Text style={[styles.btnText, { color: "#0B3B2D", fontWeight: "800" }]}>
-              ล็อกอินผ่าน Line
-            </Text>
+          <Pressable
+            style={[styles.btn, styles.btnLine, loading && styles.btnDisabled]}
+            onPress={onLoginWithLine}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#0B3B2D" />
+            ) : (
+              <Text style={[styles.btnText, { color: "#0B3B2D", fontWeight: "800" }]}>
+                ล็อกอินผ่าน Line
+              </Text>
+            )}
           </Pressable>
 
           {/* ปุ่ม: ล็อกอินผ่านเมล */}
-          <Pressable style={[styles.btn, styles.btnWhite]} onPress={onLoginWithEmail}>
+          <Pressable style={[styles.btn, styles.btnWhite]} onPress={onLoginWithEmail} disabled={loading}>
             <Text style={[styles.btnText, { color: "#0F172A" }]}>ล็อกอินผ่านเมล</Text>
           </Pressable>
 
@@ -59,7 +100,7 @@ export default function AppLogin() {
           </View>
 
           {/* ปุ่ม: สมัครสมาชิก */}
-          <Pressable style={[styles.btn, styles.btnWhite]} onPress={onRegister}>
+          <Pressable style={[styles.btn, styles.btnWhite]} onPress={onRegister} disabled={loading}>
             <Text style={[styles.btnText, { color: "#0F172A" }]}>สมัครสมาชิก</Text>
           </Pressable>
         </View>
@@ -109,6 +150,9 @@ const styles = StyleSheet.create({
   btnWhite: {
     backgroundColor: "#FFFFFF",
   },
+  btnDisabled: {
+    opacity: 0.6,
+  },
 
   /* เส้นคั่น หรือ */
   dividerRow: {
@@ -129,3 +173,4 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 });
+
